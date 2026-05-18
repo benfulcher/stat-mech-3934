@@ -119,8 +119,6 @@
       font-weight: 500;
     }
 
-    .toggle-group button:active { transform: none; }
-
     .metric-row {
       display: grid;
       grid-template-columns: repeat(3, 1fr);
@@ -203,6 +201,14 @@
       color: var(--text-secondary);
     }
 
+    .computing {
+      grid-column: 1/-1;
+      text-align: center;
+      padding: 32px 0;
+      color: var(--text-tertiary);
+      font-size: 14px;
+    }
+
     .info-box {
       margin-top: 18px;
       padding: 10px 14px;
@@ -219,7 +225,7 @@
 <body>
 
   <h1>2D Ising model — ranked microstates</h1>
-  <p class="subtitle">24 representative configurations ranked by Boltzmann probability at thermal equilibrium</p>
+  <p class="subtitle">24 representative configurations with exact Boltzmann probabilities from the full partition function over all 2<sup>16</sup> = 65,536 states</p>
 
   <div class="controls">
     <div class="ctrl-row">
@@ -238,19 +244,21 @@
 
   <div class="metric-row" id="metrics"></div>
 
-  <p class="section-label">Representative microstates — ranked by Boltzmann weight</p>
-  <div class="gallery" id="gallery"></div>
+  <p class="section-label">24 representative microstates — probabilities from exact partition function over all 65,536 states</p>
+  <div class="gallery" id="gallery"><div class="computing">Computing partition function…</div></div>
 
   <div class="info-box">
-    <strong>Boltzmann factor:</strong> P(s) ∝ e<sup>−E(s)/k<sub>B</sub>T</sup> &nbsp;|&nbsp;
-    <strong>Ising energy:</strong> E = −J Σ<sub>⟨ij⟩</sub> s<sub>i</sub>s<sub>j</sub> &nbsp;(nearest-neighbour, periodic boundary)
-    <br>
-    <span style="font-size:11px;">At low T only the lowest-energy states survive. At high T all states become equally probable. The bars show relative probability within this sample of 24 states. The 2D critical temperature is k<sub>B</sub>T<sub>c</sub> / J ≈ 2.269.</span>
+    <strong>Exact probabilities:</strong> Z = Σ e<sup>−E(s)/k<sub>B</sub>T</sup> summed over all 2<sup>16</sup> = 65,536 microstates.
+    P(s) = e<sup>−E(s)/k<sub>B</sub>T</sup> / Z for each shown state.
+    Bar widths are proportional to P(s) relative to the most probable state in the full space.
+    &nbsp;|&nbsp; <strong>Ising energy:</strong> E = −J Σ<sub>⟨ij⟩</sub> s<sub>i</sub>s<sub>j</sub> (nearest-neighbour, periodic boundary).
+    The 2D critical temperature is k<sub>B</sub>T<sub>c</sub> / J ≈ 2.269.
   </div>
 
   <script>
     const CANONICAL = buildCanonicalStates();
     let J = 1;
+    let Z_cache = null, maxP_cache = null, Z_cache_key = null;
 
     function isingEnergy(spins, j) {
       let E = 0;
@@ -262,32 +270,38 @@
       return E;
     }
 
+    function intToSpins(n) {
+      const s = [];
+      for (let i = 15; i >= 0; i--) s.push((n >> i) & 1 ? 1 : -1);
+      return s;
+    }
+
     function buildCanonicalStates() {
       const archetypes = [
-        [1,1,1,1, 1,1,1,1, 1,1,1,1, 1,1,1,1],
-        [-1,-1,-1,-1, -1,-1,-1,-1, -1,-1,-1,-1, -1,-1,-1,-1],
-        [1,1,1,1, -1,-1,-1,-1, 1,1,1,1, -1,-1,-1,-1],
-        [1,-1,1,-1, -1,1,-1,1, 1,-1,1,-1, -1,1,-1,1],
-        [1,1,-1,-1, 1,1,-1,-1, 1,1,-1,-1, 1,1,-1,-1],
-        [-1,-1,1,1, -1,-1,1,1, -1,-1,1,1, -1,-1,1,1],
-        [1,1,1,1, 1,1,1,-1, 1,1,-1,-1, 1,-1,-1,-1],
-        [1,1,1,-1, 1,1,-1,-1, 1,-1,-1,-1, -1,-1,-1,-1],
-        [1,1,-1,-1, 1,-1,-1,1, -1,-1,1,1, -1,1,1,1],
-        [1,-1,-1,-1, -1,-1,-1,-1, -1,-1,-1,-1, -1,-1,-1,1],
-        [1,1,1,1, 1,-1,-1,1, 1,-1,-1,1, 1,1,1,1],
-        [1,-1,1,-1, 1,-1,1,-1, -1,1,-1,1, -1,1,-1,1],
-        [1,1,-1,1, 1,-1,-1,-1, -1,-1,-1,1, 1,-1,1,1],
-        [1,-1,1,1, -1,-1,1,1, -1,-1,1,-1, 1,1,-1,-1],
-        [1,1,1,-1, 1,1,-1,1, 1,-1,1,1, -1,1,1,1],
-        [1,1,-1,-1, 1,-1,1,-1, -1,1,-1,1, -1,-1,1,1],
-        [1,-1,-1,1, -1,1,1,-1, 1,-1,-1,1, -1,1,1,-1],
-        [-1,1,1,-1, 1,-1,-1,1, 1,-1,-1,1, -1,1,1,-1],
-        [1,1,1,1, -1,1,1,-1, -1,1,1,-1, 1,1,1,1],
-        [-1,-1,-1,-1, 1,-1,-1,1, 1,-1,-1,1, -1,-1,-1,-1],
-        [1,-1,-1,1, -1,-1,-1,-1, -1,-1,-1,-1, 1,-1,-1,1],
-        [1,1,-1,-1, 1,1,-1,-1, -1,-1,1,1, -1,-1,1,1],
-        [1,-1,1,-1, -1,-1,-1,-1, 1,-1,1,-1, -1,-1,-1,-1],
-        [1,1,1,-1, 1,-1,-1,-1, -1,-1,-1,1, -1,1,1,1],
+        [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+        [-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1],
+        [1,1,1,1,-1,-1,-1,-1,1,1,1,1,-1,-1,-1,-1],
+        [1,-1,1,-1,-1,1,-1,1,1,-1,1,-1,-1,1,-1,1],
+        [1,1,-1,-1,1,1,-1,-1,1,1,-1,-1,1,1,-1,-1],
+        [-1,-1,1,1,-1,-1,1,1,-1,-1,1,1,-1,-1,1,1],
+        [1,1,1,1,1,1,1,-1,1,1,-1,-1,1,-1,-1,-1],
+        [1,1,1,-1,1,1,-1,-1,1,-1,-1,-1,-1,-1,-1,-1],
+        [1,1,-1,-1,1,-1,-1,1,-1,-1,1,1,-1,1,1,1],
+        [1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,1],
+        [1,1,1,1,1,-1,-1,1,1,-1,-1,1,1,1,1,1],
+        [1,-1,1,-1,1,-1,1,-1,-1,1,-1,1,-1,1,-1,1],
+        [1,1,-1,1,1,-1,-1,-1,-1,-1,-1,1,1,-1,1,1],
+        [1,-1,1,1,-1,-1,1,1,-1,-1,1,-1,1,1,-1,-1],
+        [1,1,1,-1,1,1,-1,1,1,-1,1,1,-1,1,1,1],
+        [1,1,-1,-1,1,-1,1,-1,-1,1,-1,1,-1,-1,1,1],
+        [1,-1,-1,1,-1,1,1,-1,1,-1,-1,1,-1,1,1,-1],
+        [-1,1,1,-1,1,-1,-1,1,1,-1,-1,1,-1,1,1,-1],
+        [1,1,1,1,-1,1,1,-1,-1,1,1,-1,1,1,1,1],
+        [-1,-1,-1,-1,1,-1,-1,1,1,-1,-1,1,-1,-1,-1,-1],
+        [1,-1,-1,1,-1,-1,-1,-1,-1,-1,-1,-1,1,-1,-1,1],
+        [1,1,-1,-1,1,1,-1,-1,-1,-1,1,1,-1,-1,1,1],
+        [1,-1,1,-1,-1,-1,-1,-1,1,-1,1,-1,-1,-1,-1,-1],
+        [1,1,1,-1,1,-1,-1,-1,-1,-1,-1,1,-1,1,1,1],
       ];
       const labels = [
         "All ↑ (ground FM)", "All ↓ (ground FM)", "Horizontal stripes", "Checkerboard (ground AFM)",
@@ -300,6 +314,27 @@
       return archetypes.map((s, i) => ({ spins: s, label: labels[i] }));
     }
 
+    function computeZandMaxP(T, j) {
+      const key = `${T}_${j}`;
+      if (Z_cache_key === key) return;
+      let Z = 0, maxW = 0;
+      for (let n = 0; n < 65536; n++) {
+        const w = Math.exp(-isingEnergy(intToSpins(n), j) / T);
+        Z += w;
+        if (w > maxW) maxW = w;
+      }
+      Z_cache = Z;
+      maxP_cache = maxW / Z;
+      Z_cache_key = key;
+    }
+
+    function formatProb(p) {
+      if (p >= 0.001) return (p * 100).toFixed(4) + '%';
+      const exp = Math.floor(Math.log10(p));
+      const mant = p / Math.pow(10, exp);
+      return mant.toFixed(2) + ' &times; 10<sup>' + exp + '</sup>';
+    }
+
     function magnetisation(spins) {
       return spins.reduce((a, b) => a + b, 0) / 16;
     }
@@ -307,57 +342,56 @@
     function render() {
       const T = parseFloat(document.getElementById('temp-slider').value);
       document.getElementById('temp-out').textContent = T.toFixed(1);
+      document.getElementById('gallery').innerHTML = '<div class="computing">Computing partition function over 65,536 states…</div>';
 
-      const data = CANONICAL.map(st => {
-        const E = isingEnergy(st.spins, J);
-        const bf = Math.exp(-E / T);
-        return { ...st, E, bf };
-      });
+      setTimeout(() => {
+        computeZandMaxP(T, J);
 
-      const sumBF = data.reduce((a, d) => a + d.bf, 0);
-      const maxBF = Math.max(...data.map(d => d.bf));
-      const minE = Math.min(...data.map(d => d.E));
-      const maxE = Math.max(...data.map(d => d.E));
+        const data = CANONICAL.map(st => {
+          const E = isingEnergy(st.spins, J);
+          const p = Math.exp(-E / T) / Z_cache;
+          return { ...st, E, p };
+        });
 
-      data.forEach(d => { d.relProb = d.bf / sumBF; d.normBF = d.bf / maxBF; });
-      data.sort((a, b) => b.bf - a.bf);
+        data.sort((a, b) => b.p - a.p);
 
-      const ratio = data[0].relProb / Math.max(data[data.length - 1].relProb, 1e-300);
-      const ratioStr = ratio > 1e6 ? ratio.toExponential(1) : ratio.toFixed(1);
+        const minE = Math.min(...data.map(d => d.E));
+        const maxE = Math.max(...data.map(d => d.E));
+        const ratio = data[0].p / Math.max(data[data.length - 1].p, 1e-300);
+        const ratioStr = ratio > 1e6 ? ratio.toExponential(1) : ratio.toFixed(1);
 
-      document.getElementById('metrics').innerHTML = `
-        <div class="metric-card"><div class="metric-label">Ground state E / J</div><div class="metric-val">${minE.toFixed(0)}</div></div>
-        <div class="metric-card"><div class="metric-label">Highest E shown / J</div><div class="metric-val">${maxE.toFixed(0)}</div></div>
-        <div class="metric-card"><div class="metric-label">Prob. ratio (max/min)</div><div class="metric-val">${ratioStr}</div></div>
-      `;
+        document.getElementById('metrics').innerHTML = `
+          <div class="metric-card"><div class="metric-label">Ground state E / J</div><div class="metric-val">${minE.toFixed(0)}</div></div>
+          <div class="metric-card"><div class="metric-label">Highest E shown / J</div><div class="metric-val">${maxE.toFixed(0)}</div></div>
+          <div class="metric-card"><div class="metric-label">Prob. ratio (max/min)</div><div class="metric-val">${ratioStr}</div></div>
+        `;
 
-      document.getElementById('gallery').innerHTML = data.map((d, rank) => {
-        const rankColor = rank === 0 ? '#1D9E75' : rank < 3 ? '#378ADD' : rank > 20 ? '#D85A30' : '#888780';
-        const pct = d.relProb * 100;
-        const pctStr = pct < 0.001 ? pct.toExponential(1) : pct < 0.1 ? pct.toFixed(3) : pct.toFixed(1);
-        const barW = (d.normBF * 100).toFixed(1);
-        const m = magnetisation(d.spins);
-        const spinsHtml = d.spins.map(s =>
-          `<div class="spin-cell ${s > 0 ? 'spin-up' : 'spin-dn'}">${s > 0 ? '↑' : '↓'}</div>`
-        ).join('');
-        return `<div class="state-card">
-          <div style="display:flex; justify-content:space-between; align-items:center;">
-            <span style="font-size:11px; font-weight:500; color:${rankColor};">#${rank + 1}</span>
-            <span class="tag">E = ${d.E.toFixed(0)}J</span>
-          </div>
-          <div style="display:flex; justify-content:center; margin:4px 0;">
-            <div class="spin-grid">${spinsHtml}</div>
-          </div>
-          <div class="bar-track">
-            <div class="bar-fill" style="width:${barW}%; background:${rankColor};"></div>
-          </div>
-          <div style="display:flex; justify-content:space-between; font-size:11px; color:var(--text-secondary);">
-            <span>p = ${pctStr}%</span>
-            <span>m = ${m.toFixed(2)}</span>
-          </div>
-          <div style="font-size:11px; color:var(--text-tertiary); line-height:1.3;">${d.label}</div>
-        </div>`;
-      }).join('');
+        document.getElementById('gallery').innerHTML = data.map((d, rank) => {
+          const rankColor = rank === 0 ? '#1D9E75' : rank < 3 ? '#378ADD' : rank > 20 ? '#D85A30' : '#888780';
+          const barW = (d.p / maxP_cache * 100).toFixed(2);
+          const m = magnetisation(d.spins);
+          const spinsHtml = d.spins.map(s =>
+            `<div class="spin-cell ${s > 0 ? 'spin-up' : 'spin-dn'}">${s > 0 ? '↑' : '↓'}</div>`
+          ).join('');
+          return `<div class="state-card">
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+              <span style="font-size:11px; font-weight:500; color:${rankColor};">#${rank + 1}</span>
+              <span class="tag">E = ${d.E.toFixed(0)}J</span>
+            </div>
+            <div style="display:flex; justify-content:center; margin:4px 0;">
+              <div class="spin-grid">${spinsHtml}</div>
+            </div>
+            <div class="bar-track">
+              <div class="bar-fill" style="width:${barW}%; background:${rankColor};"></div>
+            </div>
+            <div style="display:flex; justify-content:space-between; font-size:11px; color:var(--text-secondary);">
+              <span>P = ${formatProb(d.p)}</span>
+              <span>m = ${m.toFixed(2)}</span>
+            </div>
+            <div style="font-size:11px; color:var(--text-tertiary); line-height:1.3;">${d.label}</div>
+          </div>`;
+        }).join('');
+      }, 20);
     }
 
     function setJ(val) {
