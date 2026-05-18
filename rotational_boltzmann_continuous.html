@@ -1,0 +1,395 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Rotational Boltzmann Factor — Interactive Demo</title>
+<link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:wght@300;400&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #f7f5f0;
+    --surface: #ffffff;
+    --surface2: #f0ede8;
+    --border: rgba(0,0,0,0.10);
+    --border-strong: rgba(0,0,0,0.18);
+    --text: #1a1a1a;
+    --muted: #6b6b6b;
+    --accent: #185FA5;
+    --accent2: #993C1D;
+    --green: #2d7a4f;
+    --font-serif: 'Source Serif 4', Georgia, serif;
+    --font-mono: 'JetBrains Mono', monospace;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font-serif);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 2.5rem 2rem;
+  }
+
+  .container { width: 100%; max-width: 880px; }
+
+  header {
+    margin-bottom: 2rem;
+    border-bottom: 1px solid var(--border-strong);
+    padding-bottom: 1.25rem;
+  }
+
+  h1 {
+    font-size: clamp(1.3rem, 3vw, 1.9rem);
+    font-weight: 300;
+    letter-spacing: 0.01em;
+    line-height: 1.3;
+    margin-bottom: 0.4rem;
+    color: var(--text);
+  }
+
+  h1 em { font-style: italic; color: var(--accent); }
+
+  .subtitle {
+    font-size: 0.82rem;
+    color: var(--muted);
+    font-family: var(--font-mono);
+    letter-spacing: 0.03em;
+  }
+
+  .formula {
+    font-family: var(--font-mono);
+    font-size: 0.9rem;
+    color: var(--muted);
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 0.65rem 1rem;
+    margin-bottom: 1.5rem;
+    text-align: center;
+    letter-spacing: 0.02em;
+  }
+
+  .controls {
+    display: flex;
+    align-items: center;
+    gap: 1.25rem;
+    margin-bottom: 1.5rem;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 1rem 1.5rem;
+  }
+
+  .controls label {
+    font-family: var(--font-mono);
+    font-size: 0.85rem;
+    color: var(--muted);
+    white-space: nowrap;
+  }
+
+  input[type=range] {
+    flex: 1;
+    -webkit-appearance: none;
+    height: 3px;
+    background: var(--surface2);
+    border-radius: 2px;
+    outline: none;
+    border: none;
+  }
+  input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 18px; height: 18px;
+    border-radius: 50%;
+    background: var(--accent);
+    cursor: pointer;
+    border: 2px solid var(--bg);
+    transition: transform 0.1s;
+  }
+  input[type=range]::-webkit-slider-thumb:hover { transform: scale(1.2); }
+
+  .be-display {
+    font-family: var(--font-mono);
+    font-size: 1.05rem;
+    font-weight: 500;
+    color: var(--accent);
+    min-width: 64px;
+    text-align: right;
+  }
+
+  .metrics {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 12px;
+    margin-bottom: 1.5rem;
+  }
+
+  .metric {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 0.9rem 1.1rem;
+  }
+
+  .metric-label {
+    font-family: var(--font-mono);
+    font-size: 0.68rem;
+    color: var(--muted);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    margin-bottom: 5px;
+  }
+
+  .metric-value {
+    font-family: var(--font-mono);
+    font-size: 1.5rem;
+    font-weight: 500;
+    color: var(--text);
+  }
+
+  .chart-wrap {
+    position: relative;
+    width: 100%;
+    height: 380px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 1rem 1rem 0.5rem;
+  }
+
+  .legend {
+    display: flex;
+    gap: 1.5rem;
+    margin-top: 1rem;
+    padding-top: 1rem;
+    border-top: 1px solid var(--border);
+    flex-wrap: wrap;
+  }
+
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.8rem;
+    color: var(--muted);
+    font-family: var(--font-mono);
+  }
+
+  .swatch      { width: 12px; height: 12px; border-radius: 2px; }
+  .swatch-dot  { width: 12px; height: 12px; border-radius: 50%; }
+  .swatch-line { width: 22px; height: 3px;  border-radius: 2px; }
+
+  .footer {
+    margin-top: 1.75rem;
+    font-size: 0.72rem;
+    color: var(--muted);
+    font-family: var(--font-mono);
+    text-align: center;
+    letter-spacing: 0.03em;
+  }
+</style>
+</head>
+<body>
+<div class="container">
+  <header>
+    <h1>Rotational Boltzmann factor: <em>(2j+1) e<sup>−βj(j+1)ε</sup></em></h1>
+    <p class="subtitle">discrete levels (bars) vs. continuous approximation (curve) &nbsp;·&nbsp; drag βε to explore</p>
+  </header>
+
+  <div class="formula">
+    f(j) = (2j + 1) · exp[ −β · j(j+1) · ε ] &nbsp;&nbsp;|&nbsp;&nbsp; peak: j* = √(1 / 2βε) − ½
+  </div>
+
+  <div class="controls">
+    <label>βε</label>
+    <input type="range" id="beSlider" min="0" max="1" step="0.001" value="0.4" />
+    <span class="be-display" id="beVal">—</span>
+  </div>
+
+  <div class="metrics">
+    <div class="metric">
+      <div class="metric-label">Peak j* (numeric)</div>
+      <div class="metric-value" id="jstar">—</div>
+    </div>
+    <div class="metric">
+      <div class="metric-label">Peak value</div>
+      <div class="metric-value" id="peakval">—</div>
+    </div>
+    <div class="metric">
+      <div class="metric-label">j* = √(1/2βε) − ½</div>
+      <div class="metric-value" id="janalyticval">—</div>
+    </div>
+  </div>
+
+  <div class="chart-wrap">
+    <canvas id="rotChart" role="img"
+      aria-label="Bar chart of discrete rotational Boltzmann factor with smooth continuous approximation overlaid">
+      Rotational Boltzmann factor as a function of quantum number j, with continuous approximation.
+    </canvas>
+  </div>
+
+  <div class="legend">
+    <div class="legend-item">
+      <div class="swatch" style="background:#185FA5;opacity:0.7;"></div>
+      discrete (integer j)
+    </div>
+    <div class="legend-item">
+      <div class="swatch-dot" style="background:#993C1D;"></div>
+      peak j*
+    </div>
+    <div class="legend-item">
+      <div class="swatch-line" style="background:#2d7a4f;"></div>
+      continuous approximation
+    </div>
+  </div>
+
+  <div class="footer">
+    slider uses quadratic mapping for fine control at small βε (high T) &nbsp;·&nbsp; bar count scales with peak position
+  </div>
+</div>
+
+<script>
+(function() {
+  function sliderToBe(v) {
+    return 0.001 + Math.pow(parseFloat(v), 2) * (2.0 - 0.001);
+  }
+
+  function f(j, be) {
+    return (2*j + 1) * Math.exp(-be * j * (j + 1));
+  }
+
+  function build(be) {
+    const maxJ = Math.min(Math.ceil(Math.sqrt(1/(2*be)) * 5 + 20), 300);
+    const barLabels = [], barData = [];
+    for (let j = 0; j <= maxJ; j++) {
+      const val = f(j, be);
+      barLabels.push(j);
+      barData.push(parseFloat(val.toFixed(6)));
+      if (val < 1e-4 && j > 10) break;
+    }
+    const nMax = barLabels[barLabels.length - 1];
+    const contData = [];
+    const steps = nMax * 20;
+    for (let i = 0; i <= steps; i++) {
+      const j = (nMax * i) / steps;
+      contData.push({ x: j, y: f(j, be) });
+    }
+    const peakIdx = barData.indexOf(Math.max(...barData));
+    return { barLabels, barData, contData, peakIdx, nMax };
+  }
+
+  let chart = null;
+
+  function update(be) {
+    const { barLabels, barData, contData, peakIdx, nMax } = build(be);
+
+    document.getElementById('jstar').textContent = barLabels[peakIdx];
+    document.getElementById('peakval').textContent = barData[peakIdx].toFixed(2);
+    document.getElementById('janalyticval').textContent = (Math.sqrt(1/(2*be)) - 0.5).toFixed(1);
+
+    const barColors = barData.map((_, i) =>
+      i === peakIdx ? '#993C1Dcc' : '#185FA5aa'
+    );
+
+    if (!chart) {
+      chart = new Chart(document.getElementById('rotChart'), {
+        data: {
+          datasets: [
+            {
+              type: 'bar',
+              label: 'discrete',
+              data: barData,
+              backgroundColor: barColors,
+              borderWidth: 0,
+              borderRadius: 2,
+              barPercentage: 0.9,
+              categoryPercentage: 0.9,
+              xAxisID: 'xBar',
+              order: 2
+            },
+            {
+              type: 'line',
+              label: 'continuous',
+              data: contData,
+              borderColor: '#2d7a4f',
+              borderWidth: 2.5,
+              pointRadius: 0,
+              tension: 0,
+              fill: false,
+              xAxisID: 'xLine',
+              yAxisID: 'y',
+              order: 1
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          animation: { duration: 60 },
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              filter: item => item.datasetIndex === 0,
+              callbacks: {
+                title: i => 'j = ' + i[0].label,
+                label: i => 'f(j) = ' + parseFloat(i[0].raw).toFixed(4)
+              }
+            }
+          },
+          scales: {
+            xBar: {
+              type: 'category',
+              labels: barLabels,
+              position: 'bottom',
+              title: { display: true, text: 'j', color: '#6b6b6b', font: { size: 13 } },
+              ticks: { color: '#6b6b6b', font: { size: 11 }, maxTicksLimit: 24 },
+              grid: { color: 'rgba(0,0,0,0.06)' }
+            },
+            xLine: {
+              type: 'linear',
+              position: 'bottom',
+              min: -0.5,
+              max: nMax + 0.5,
+              display: false,
+              grid: { display: false }
+            },
+            y: {
+              title: { display: true, text: '(2j+1) exp(−βj(j+1)ε)', color: '#6b6b6b', font: { size: 12 } },
+              ticks: { color: '#6b6b6b', font: { size: 11 } },
+              grid: { color: 'rgba(0,0,0,0.06)' },
+              min: 0
+            }
+          }
+        }
+      });
+    } else {
+      chart.data.datasets[0].data = barData;
+      chart.data.datasets[0].backgroundColor = barColors;
+      chart.options.scales.xBar.labels = barLabels;
+      chart.options.scales.xLine.max = nMax + 0.5;
+      chart.data.datasets[1].data = contData;
+      chart.update('none');
+    }
+  }
+
+  const slider = document.getElementById('beSlider');
+  const beValEl = document.getElementById('beVal');
+
+  slider.addEventListener('input', () => {
+    const be = sliderToBe(slider.value);
+    beValEl.textContent = be < 0.01 ? be.toFixed(4) : be.toFixed(3);
+    update(be);
+  });
+
+  const initBe = sliderToBe(slider.value);
+  beValEl.textContent = initBe.toFixed(3);
+  update(initBe);
+})();
+</script>
+</body>
+</html>
