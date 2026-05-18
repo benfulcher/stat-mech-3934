@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>2D Ising Model — Boltzmann Sampler</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #ffffff;
+      --bg-secondary: #f5f5f3;
+      --bg-info: #e6f1fb;
+      --text: #1a1a18;
+      --text-secondary: #5f5e5a;
+      --text-tertiary: #888780;
+      --text-info: #0c447c;
+      --border: rgba(0,0,0,0.12);
+      --border-secondary: rgba(0,0,0,0.22);
+      --radius-md: 8px;
+      --radius-lg: 12px;
+      --spin-up-bg: #378ADD;
+      --spin-up-text: #042C53;
+      --spin-dn-bg: #F0997B;
+      --spin-dn-text: #4A1B0C;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #1e1e1c;
+        --bg-secondary: #2a2a28;
+        --bg-info: #042c53;
+        --text: #f0ede8;
+        --text-secondary: #b4b2a9;
+        --text-tertiary: #888780;
+        --text-info: #85b7eb;
+        --border: rgba(255,255,255,0.12);
+        --border-secondary: rgba(255,255,255,0.22);
+      }
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      max-width: 740px;
+      margin: 0 auto;
+      padding: 32px 20px 48px;
+      font-size: 15px;
+      line-height: 1.6;
+    }
+
+    h1 {
+      font-size: 20px;
+      font-weight: 500;
+      margin-bottom: 4px;
+    }
+
+    .subtitle {
+      font-size: 13px;
+      color: var(--text-secondary);
+      margin-bottom: 24px;
+    }
+
+    .controls {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 16px 0 14px;
+      border-bottom: 0.5px solid var(--border);
+      margin-bottom: 16px;
+      flex-wrap: wrap;
+    }
+
+    .controls label {
+      font-size: 14px;
+      color: var(--text-secondary);
+      white-space: nowrap;
+    }
+
+    input[type=range] {
+      flex: 1;
+      min-width: 120px;
+      accent-color: #378ADD;
+      cursor: pointer;
+    }
+
+    #temp-out {
+      font-size: 16px;
+      font-weight: 500;
+      min-width: 38px;
+      text-align: right;
+    }
+
+    button {
+      padding: 7px 20px;
+      font-size: 14px;
+      font-weight: 500;
+      border: 0.5px solid var(--border-secondary);
+      border-radius: var(--radius-md);
+      background: transparent;
+      color: var(--text);
+      cursor: pointer;
+      transition: background 0.15s;
+      white-space: nowrap;
+    }
+
+    button:hover { background: var(--bg-secondary); }
+    button:active { transform: scale(0.98); }
+
+    .metric-row {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 8px;
+      margin-bottom: 16px;
+    }
+
+    @media (max-width: 480px) {
+      .metric-row { grid-template-columns: repeat(2, 1fr); }
+    }
+
+    .metric-card {
+      background: var(--bg-secondary);
+      border-radius: var(--radius-md);
+      padding: 8px 12px;
+    }
+
+    .metric-label {
+      font-size: 11px;
+      color: var(--text-secondary);
+      margin-bottom: 2px;
+    }
+
+    .metric-val {
+      font-size: 16px;
+      font-weight: 500;
+    }
+
+    .gallery {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 8px;
+    }
+
+    @media (max-width: 480px) {
+      .gallery { grid-template-columns: repeat(2, 1fr); }
+    }
+
+    .sample-card {
+      border: 0.5px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: 8px 10px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+      background: var(--bg);
+    }
+
+    .spin-grid {
+      display: inline-grid;
+      grid-template-columns: repeat(4, 14px);
+      gap: 1px;
+    }
+
+    .spin-cell {
+      width: 14px;
+      height: 14px;
+      border-radius: 2px;
+      font-size: 8px;
+      font-weight: 500;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .spin-up { background: var(--spin-up-bg); color: var(--spin-up-text); }
+    .spin-dn { background: var(--spin-dn-bg); color: var(--spin-dn-text); }
+
+    .bar-track {
+      width: 100%;
+      background: var(--bg-secondary);
+      border-radius: 3px;
+      height: 5px;
+      overflow: hidden;
+    }
+
+    .bar-fill { height: 100%; border-radius: 3px; }
+
+    .empty-state {
+      grid-column: 1 / -1;
+      text-align: center;
+      padding: 48px 0;
+      color: var(--text-tertiary);
+      font-size: 14px;
+    }
+
+    .info-box {
+      margin-top: 16px;
+      padding: 10px 14px;
+      background: var(--bg-secondary);
+      border-radius: var(--radius-md);
+      font-size: 12px;
+      color: var(--text-secondary);
+      line-height: 1.6;
+    }
+
+    .info-box strong { color: var(--text); }
+
+    @keyframes popIn {
+      from { opacity: 0; transform: scale(0.85); }
+      to   { opacity: 1; transform: scale(1); }
+    }
+    .pop-in { animation: popIn 0.2s ease; }
+  </style>
+</head>
+<body>
+
+  <h1>2D Ising model — Boltzmann sampler</h1>
+  <p class="subtitle">Sample 16 microstates from the exact thermal distribution over all 2<sup>16</sup> = 65,536 spin configurations</p>
+
+  <div class="controls">
+    <label for="temp-slider"><em>k<sub>B</sub>T / J</em></label>
+    <input type="range" id="temp-slider" min="0.2" max="5" step="0.1" value="2.3" />
+    <span id="temp-out">2.3</span>
+    <button onclick="drawSample()">Draw sample</button>
+  </div>
+
+  <div class="metric-row">
+    <div class="metric-card"><div class="metric-label">Mean |m|</div><div class="metric-val" id="m-val">—</div></div>
+    <div class="metric-card"><div class="metric-label">Mean E / J</div><div class="metric-val" id="e-val">—</div></div>
+    <div class="metric-card"><div class="metric-label">Unique states</div><div class="metric-val" id="u-val">—</div></div>
+    <div class="metric-card"><div class="metric-label">Draws so far</div><div class="metric-val" id="d-val">0</div></div>
+  </div>
+
+  <div class="gallery" id="gallery">
+    <div class="empty-state">Set a temperature and press <strong>Draw sample</strong> to begin</div>
+  </div>
+
+  <div class="info-box">
+    <strong>How this works:</strong> all 2<sup>16</sup> = 65,536 microstates are weighted by their Boltzmann factor
+    e<sup>−E/k<sub>B</sub>T</sup>. Each draw picks 16 states independently from that distribution.
+    The probability shown on each card is P(s) = e<sup>−E/k<sub>B</sub>T</sup> / Z,
+    where Z is the exact partition function. At low T the sample is dominated by ordered ground states;
+    at high T disordered configurations flood in.
+    <br><br>
+    <strong>Ising energy:</strong> E = −J Σ<sub>⟨ij⟩</sub> s<sub>i</sub>s<sub>j</sub>
+    (nearest-neighbour, periodic boundary conditions, J = 1).
+    The 2D critical temperature is k<sub>B</sub>T<sub>c</sub> / J ≈ 2.269.
+  </div>
+
+  <script>
+    let totalDraws = 0;
+    let seenKeys = new Set();
+    let CDF = null, PROBS = null, CDF_T = null;
+
+    function isingEnergy(spins) {
+      let E = 0;
+      for (let r = 0; r < 4; r++) {
+        for (let c = 0; c < 4; c++) {
+          const s = spins[r * 4 + c];
+          E -= s * spins[r * 4 + (c + 1) % 4];
+          E -= s * spins[((r + 1) % 4) * 4 + c];
+        }
+      }
+      return E;
+    }
+
+    function intToSpins(n) {
+      const s = [];
+      for (let i = 15; i >= 0; i--) s.push((n >> i) & 1 ? 1 : -1);
+      return s;
+    }
+
+    function buildCDF(T) {
+      if (CDF_T === T) return;
+      const N = 65536;
+      const weights = new Float64Array(N);
+      let sum = 0;
+      for (let n = 0; n < N; n++) {
+        const w = Math.exp(-isingEnergy(intToSpins(n)) / T);
+        weights[n] = w;
+        sum += w;
+      }
+      PROBS = new Float64Array(N);
+      CDF = new Float64Array(N);
+      let acc = 0;
+      for (let n = 0; n < N; n++) {
+        PROBS[n] = weights[n] / sum;
+        acc += PROBS[n];
+        CDF[n] = acc;
+      }
+      CDF_T = T;
+    }
+
+    function sampleOne() {
+      const r = Math.random();
+      let lo = 0, hi = CDF.length - 1;
+      while (lo < hi) {
+        const mid = (lo + hi) >> 1;
+        if (CDF[mid] < r) lo = mid + 1; else hi = mid;
+      }
+      return lo;
+    }
+
+    function magnetisation(spins) {
+      return Math.abs(spins.reduce((a, b) => a + b, 0) / 16);
+    }
+
+    function formatProb(p) {
+      if (p >= 0.001) return (p * 100).toFixed(3) + '%';
+      const exp = Math.floor(Math.log10(p));
+      const mant = p / Math.pow(10, exp);
+      return mant.toFixed(2) + ' &times; 10<sup>' + exp + '</sup>';
+    }
+
+    function drawSample() {
+      const T = parseFloat(document.getElementById('temp-slider').value);
+      buildCDF(T);
+
+      const drawn = [];
+      for (let i = 0; i < 16; i++) {
+        const idx = sampleOne();
+        const spins = intToSpins(idx);
+        drawn.push({ spins, E: isingEnergy(spins), m: magnetisation(spins), p: PROBS[idx], idx });
+        seenKeys.add(idx.toString());
+      }
+
+      const pMax = Math.max(...drawn.map(d => d.p));
+      totalDraws += 16;
+
+      document.getElementById('d-val').textContent = totalDraws;
+      document.getElementById('u-val').textContent = seenKeys.size;
+      document.getElementById('m-val').textContent = (drawn.reduce((a, d) => a + d.m, 0) / 16).toFixed(2);
+      document.getElementById('e-val').textContent = (drawn.reduce((a, d) => a + d.E, 0) / 16).toFixed(1);
+
+      document.getElementById('gallery').innerHTML = drawn.map(d => {
+        const mColor = d.m > 0.75 ? '#1D9E75' : d.m > 0.4 ? '#378ADD' : '#888780';
+        const barW = (d.p / pMax * 100).toFixed(1);
+        const spinsHtml = d.spins.map(s =>
+          `<div class="spin-cell ${s > 0 ? 'spin-up' : 'spin-dn'}">${s > 0 ? '↑' : '↓'}</div>`
+        ).join('');
+        return `<div class="sample-card pop-in">
+          <div class="spin-grid">${spinsHtml}</div>
+          <div style="font-size:10px; color:var(--text-secondary);">E = ${d.E.toFixed(0)}J &nbsp;|m| = <span style="color:${mColor}; font-weight:500;">${d.m.toFixed(2)}</span></div>
+          <div style="width:100%;"><div class="bar-track"><div class="bar-fill" style="width:${barW}%; background:${mColor};"></div></div></div>
+          <div style="font-size:10px; color:var(--text-secondary); text-align:center;">P = ${formatProb(d.p)}</div>
+        </div>`;
+      }).join('');
+    }
+
+    document.getElementById('temp-slider').addEventListener('input', function () {
+      const T = parseFloat(this.value).toFixed(1);
+      document.getElementById('temp-out').textContent = T;
+      CDF_T = null; CDF = null; PROBS = null;
+      seenKeys = new Set(); totalDraws = 0;
+      document.getElementById('d-val').textContent = '0';
+      document.getElementById('u-val').textContent = '—';
+      document.getElementById('m-val').textContent = '—';
+      document.getElementById('e-val').textContent = '—';
+      document.getElementById('gallery').innerHTML =
+        `<div class="empty-state">Press <strong>Draw sample</strong> to sample at T = ${T}</div>`;
+    });
+  </script>
+</body>
+</html>
