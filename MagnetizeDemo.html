@@ -1,0 +1,589 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Magnetize Demo — Mean Field Bifurcation</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:ital,wght@0,400;0,700;1,400&family=DM+Serif+Display:ital@0;1&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0a0c10;
+    --panel: #111318;
+    --border: #1e2230;
+    --text: #e8eaf0;
+    --muted: #5a6070;
+    --accent: #d8163f;
+    --accent2: #2a8eff;
+    --accent3: #f0c040;
+    --green: #38c47a;
+    --grid: #181c24;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Space Mono', monospace;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 2rem 1rem;
+  }
+
+  header {
+    text-align: center;
+    margin-bottom: 2.5rem;
+  }
+
+  header h1 {
+    font-family: 'DM Serif Display', serif;
+    font-size: clamp(1.8rem, 4vw, 3rem);
+    font-style: italic;
+    letter-spacing: -0.02em;
+    color: var(--text);
+    line-height: 1;
+  }
+
+  header h1 span {
+    color: var(--accent);
+  }
+
+  header p {
+    margin-top: 0.5rem;
+    font-size: 0.72rem;
+    color: var(--muted);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+  }
+
+  .container {
+    width: 100%;
+    max-width: 900px;
+    display: grid;
+    grid-template-columns: 1fr 280px;
+    gap: 1.5rem;
+    align-items: start;
+  }
+
+  @media (max-width: 720px) {
+    .container { grid-template-columns: 1fr; }
+  }
+
+  .canvas-wrap {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 1.5rem;
+    position: relative;
+  }
+
+  canvas {
+    display: block;
+    width: 100%;
+    height: auto;
+    image-rendering: crisp-edges;
+  }
+
+  .canvas-label {
+    position: absolute;
+    top: 1rem;
+    right: 1rem;
+    font-size: 0.65rem;
+    color: var(--muted);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+  }
+
+  .sidebar {
+    display: flex;
+    flex-direction: column;
+    gap: 1.2rem;
+  }
+
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 1.2rem;
+  }
+
+  .panel-title {
+    font-size: 0.65rem;
+    color: var(--muted);
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    margin-bottom: 1rem;
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 0.5rem;
+  }
+
+  .beta-display {
+    display: flex;
+    align-items: baseline;
+    gap: 0.5rem;
+    margin-bottom: 1rem;
+  }
+
+  .beta-label {
+    font-family: 'DM Serif Display', serif;
+    font-style: italic;
+    font-size: 1.6rem;
+    color: var(--accent3);
+  }
+
+  .beta-value {
+    font-size: 1.2rem;
+    font-weight: 700;
+    color: var(--text);
+    min-width: 3.5ch;
+  }
+
+  input[type=range] {
+    -webkit-appearance: none;
+    width: 100%;
+    height: 3px;
+    background: var(--border);
+    border-radius: 2px;
+    outline: none;
+    cursor: pointer;
+    margin-bottom: 0.8rem;
+  }
+
+  input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: var(--accent3);
+    cursor: pointer;
+    border: 2px solid var(--bg);
+    box-shadow: 0 0 8px rgba(240,192,64,0.4);
+    transition: box-shadow 0.15s;
+  }
+
+  input[type=range]::-webkit-slider-thumb:hover {
+    box-shadow: 0 0 14px rgba(240,192,64,0.7);
+  }
+
+  .range-labels {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.6rem;
+    color: var(--muted);
+    margin-top: -0.4rem;
+    margin-bottom: 0.6rem;
+  }
+
+  .btn-row {
+    display: flex;
+    gap: 0.6rem;
+    flex-wrap: wrap;
+  }
+
+  button {
+    font-family: 'Space Mono', monospace;
+    font-size: 0.68rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    padding: 0.5rem 0.9rem;
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    background: transparent;
+    color: var(--muted);
+    cursor: pointer;
+    transition: all 0.15s;
+    flex: 1;
+  }
+
+  button:hover {
+    border-color: var(--accent3);
+    color: var(--accent3);
+  }
+
+  button.primary {
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+
+  button.primary:hover {
+    background: var(--accent);
+    color: var(--bg);
+  }
+
+  button:disabled {
+    opacity: 0.3;
+    cursor: not-allowed;
+  }
+
+  .fixed-points {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .fp-row {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    font-size: 0.72rem;
+    padding: 0.4rem 0.6rem;
+    background: var(--grid);
+    border-radius: 3px;
+    border: 1px solid var(--border);
+    transition: all 0.2s;
+  }
+
+  .fp-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--accent);
+    flex-shrink: 0;
+    box-shadow: 0 0 6px var(--accent);
+  }
+
+  .fp-dot.trivial { background: var(--muted); box-shadow: none; }
+
+  .fp-val { font-weight: 700; color: var(--text); }
+  .fp-type { color: var(--muted); font-size: 0.6rem; margin-left: auto; }
+
+  .info-block {
+    font-size: 0.68rem;
+    color: var(--muted);
+    line-height: 1.7;
+  }
+
+  .info-block strong { color: var(--accent2); font-weight: 400; }
+
+  .equation {
+    font-family: 'DM Serif Display', serif;
+    font-style: italic;
+    font-size: 1rem;
+    color: var(--accent2);
+    text-align: center;
+    margin: 0.7rem 0;
+    letter-spacing: 0.02em;
+  }
+
+  .phase-indicator {
+    text-align: center;
+    padding: 0.6rem;
+    border-radius: 3px;
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    transition: all 0.3s;
+  }
+
+  .phase-para { background: rgba(42,142,255,0.1); border: 1px solid var(--accent2); color: var(--accent2); }
+  .phase-ferro { background: rgba(216,22,63,0.1); border: 1px solid var(--accent); color: var(--accent); }
+
+  .axis-tick {
+    fill: #5a6070;
+    font-family: 'Space Mono', monospace;
+    font-size: 9px;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Mean-Field <span>Magnetization</span></h1>
+  <p>Bifurcation Demo &nbsp;·&nbsp; tanh(βx) = x</p>
+</header>
+
+<div class="container">
+  <div class="canvas-wrap">
+    <canvas id="plot" width="520" height="420"></canvas>
+    <div class="canvas-label">Phase Portrait</div>
+  </div>
+
+  <div class="sidebar">
+    <div class="panel">
+      <div class="panel-title">Inverse Temperature β</div>
+      <div class="beta-display">
+        <span class="beta-label">β</span>
+        <span class="beta-value" id="betaVal">0.00</span>
+      </div>
+      <input type="range" id="betaSlider" min="0" max="3" step="0.01" value="0">
+      <div class="range-labels"><span>0</span><span>1</span><span>2</span><span>3</span></div>
+      <div class="btn-row">
+        <button class="primary" id="animBtn" onclick="toggleAnim()">▶ Animate</button>
+        <button onclick="resetAnim()">Reset</button>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-title">Fixed Points  m*: tanh(βm*) = m*</div>
+      <div class="fixed-points" id="fpList">
+        <div class="fp-row"><span class="fp-dot trivial"></span><span class="fp-val">m* = 0</span><span class="fp-type">trivial</span></div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-title">Phase</div>
+      <div class="phase-indicator phase-para" id="phaseBox">Paramagnetic</div>
+      <div class="equation">∂tanh/∂m|₀ = β</div>
+      <div class="info-block">
+        <strong>β &lt; 1:</strong> Only m* = 0 stable.<br>
+        <strong>β = 1:</strong> Critical point.<br>
+        <strong>β &gt; 1:</strong> Spontaneous symmetry breaking — ±m* emerge.
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const canvas = document.getElementById('plot');
+const ctx = canvas.getContext('2d');
+const slider = document.getElementById('betaSlider');
+const betaValEl = document.getElementById('betaVal');
+const fpListEl = document.getElementById('fpList');
+const phaseBox = document.getElementById('phaseBox');
+const animBtn = document.getElementById('animBtn');
+
+let beta = 0;
+let animating = false;
+let animId = null;
+let animBeta = 0;
+const animSpeed = 0.012;
+
+// Canvas coordinate mapping
+const W = 520, H = 420;
+const PAD = { top: 24, right: 24, bottom: 40, left: 50 };
+const xMin = -2.2, xMax = 2.2, yMin = -1.2, yMax = 1.2;
+
+function toCanvasX(x) { return PAD.left + (x - xMin) / (xMax - xMin) * (W - PAD.left - PAD.right); }
+function toCanvasY(y) { return H - PAD.bottom - (y - yMin) / (yMax - yMin) * (H - PAD.top - PAD.bottom); }
+
+function drawGrid() {
+  ctx.clearRect(0, 0, W, H);
+  // Background
+  ctx.fillStyle = '#0a0c10';
+  ctx.fillRect(0, 0, W, H);
+
+  // Grid lines
+  ctx.strokeStyle = '#181c24';
+  ctx.lineWidth = 1;
+  const xTicks = [-2, -1, 0, 1, 2];
+  const yTicks = [-1, -0.5, 0, 0.5, 1];
+
+  for (const t of xTicks) {
+    const x = toCanvasX(t);
+    ctx.beginPath(); ctx.moveTo(x, PAD.top); ctx.lineTo(x, H - PAD.bottom); ctx.stroke();
+  }
+  for (const t of yTicks) {
+    const y = toCanvasY(t);
+    ctx.beginPath(); ctx.moveTo(PAD.left, y); ctx.lineTo(W - PAD.right, y); ctx.stroke();
+  }
+
+  // Axes
+  ctx.strokeStyle = '#2a3040';
+  ctx.lineWidth = 1.5;
+  const cx = toCanvasX(0), cy = toCanvasY(0);
+  ctx.beginPath(); ctx.moveTo(PAD.left, cy); ctx.lineTo(W - PAD.right, cy); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(cx, PAD.top); ctx.lineTo(cx, H - PAD.bottom); ctx.stroke();
+
+  // Labels
+  ctx.fillStyle = '#5a6070';
+  ctx.font = '9px Space Mono, monospace';
+  ctx.textAlign = 'center';
+  for (const t of xTicks) {
+    if (t === 0) continue;
+    ctx.fillText(t, toCanvasX(t), H - PAD.bottom + 14);
+  }
+  ctx.textAlign = 'right';
+  for (const t of yTicks) {
+    if (t === 0) continue;
+    ctx.fillText(t, PAD.left - 6, toCanvasY(t) + 3);
+  }
+
+  // Axis labels
+  ctx.fillStyle = '#3a4050';
+  ctx.font = '9px Space Mono, monospace';
+  ctx.textAlign = 'center';
+  ctx.fillText('m', W - PAD.right + 10, toCanvasY(0) + 3);
+  ctx.fillText('f(m)', toCanvasX(0), PAD.top - 8);
+}
+
+function linspace(a, b, n) {
+  const arr = [];
+  for (let i = 0; i < n; i++) arr.push(a + (b - a) * i / (n - 1));
+  return arr;
+}
+
+function drawLine(xs, ys, color, width, dash=[]) {
+  ctx.save();
+  ctx.strokeStyle = color;
+  ctx.lineWidth = width;
+  ctx.setLineDash(dash);
+  ctx.beginPath();
+  for (let i = 0; i < xs.length; i++) {
+    const px = toCanvasX(xs[i]), py = toCanvasY(ys[i]);
+    if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+  }
+  ctx.stroke();
+  ctx.restore();
+}
+
+function findFixedPoints(b) {
+  const xs = linspace(-2.2, 2.2, 2000);
+  const diffs = xs.map(x => Math.tanh(b * x) - x);
+  const fps = [];
+  for (let i = 0; i < diffs.length - 1; i++) {
+    if (diffs[i] * diffs[i+1] < 0) {
+      // Linear interpolation
+      const t = diffs[i] / (diffs[i] - diffs[i+1]);
+      fps.push(xs[i] + t * (xs[i+1] - xs[i]));
+    }
+  }
+  // Always include 0
+  if (!fps.some(p => Math.abs(p) < 0.05)) fps.push(0);
+  return fps.sort((a, b) => a - b);
+}
+
+function draw(b) {
+  drawGrid();
+  const xs = linspace(-2.2, 2.2, 400);
+
+  // Draw y = x identity line (blue dashed)
+  drawLine(xs, xs, '#2a6ea8', 1.5, [6, 4]);
+
+  // Draw tanh(bx) curve
+  const tanhY = xs.map(x => Math.tanh(b * x));
+
+  // Color gradient: cool to warm based on beta
+  const t = Math.min(b / 2, 1);
+  const r = Math.round(42 + (216 - 42) * t);
+  const g = Math.round(142 + (22 - 142) * t);
+  const bl = Math.round(255 + (63 - 255) * t);
+  const curveColor = `rgb(${r},${g},${bl})`;
+  drawLine(xs, tanhY, curveColor, 2.5);
+
+  // Fixed points
+  const fps = findFixedPoints(b);
+
+  // Draw fixed point dots
+  fps.forEach(fp => {
+    const px = toCanvasX(fp), py = toCanvasY(Math.tanh(b * fp));
+    const isTrivial = Math.abs(fp) < 0.05;
+    const isStable = isStableFixedPoint(fp, b);
+
+    ctx.beginPath();
+    ctx.arc(px, py, 6, 0, Math.PI * 2);
+    ctx.fillStyle = isTrivial ? (b > 1 ? '#d04060' : '#5a6070') : '#d8163f';
+    ctx.fill();
+
+    // Glow for non-trivial
+    if (!isTrivial || b < 1) {
+      ctx.beginPath();
+      ctx.arc(px, py, 9, 0, Math.PI * 2);
+      ctx.fillStyle = isTrivial ? 'rgba(90,96,112,0.15)' : 'rgba(216,22,63,0.2)';
+      ctx.fill();
+    }
+  });
+
+  // Legend
+  ctx.save();
+  ctx.font = '10px Space Mono, monospace';
+  ctx.fillStyle = '#2a6ea8'; ctx.fillText('m (identity)', PAD.left + 8, PAD.top + 16);
+  ctx.fillStyle = curveColor; ctx.fillText(`tanh(${b.toFixed(2)}·m)`, PAD.left + 8, PAD.top + 30);
+  ctx.restore();
+
+  // Update UI
+  updateUI(b, fps);
+}
+
+function isStableFixedPoint(fp, b) {
+  // Stable if |d/dm tanh(b*m) - 1| < 0 at fp, i.e. b*sech²(b*fp) < 1
+  const deriv = b * (1 - Math.pow(Math.tanh(b * fp), 2));
+  return deriv < 1;
+}
+
+function updateUI(b, fps) {
+  betaValEl.textContent = b.toFixed(2);
+
+  // Fixed points list
+  fpListEl.innerHTML = '';
+  fps.forEach(fp => {
+    const isTrivial = Math.abs(fp) < 0.05;
+    const stable = isStableFixedPoint(fp, b);
+    const div = document.createElement('div');
+    div.className = 'fp-row';
+    const dotClass = isTrivial ? 'fp-dot trivial' : 'fp-dot';
+    const stability = stable ? 'stable' : 'unstable';
+    const label = isTrivial ? 'trivial' : (fp > 0 ? '+mag' : '−mag');
+    div.innerHTML = `<span class="${dotClass}" style="${!stable ? 'background:none;box-shadow:none;border:1.5px solid #d8163f;border-radius:50%' : ''}"></span><span class="fp-val">m* = ${fp >= 0 ? '+' : ''}${fp.toFixed(3)}</span><span class="fp-type">${label} · ${stability}</span>`;
+    fpListEl.appendChild(div);
+  });
+
+  // Phase indicator
+  if (b < 0.98) {
+    phaseBox.textContent = 'Paramagnetic  (β < 1)';
+    phaseBox.className = 'phase-indicator phase-para';
+  } else if (b < 1.05) {
+    phaseBox.textContent = 'Critical Point  (β ≈ 1)';
+    phaseBox.className = 'phase-indicator';
+    phaseBox.style.background = 'rgba(240,192,64,0.1)';
+    phaseBox.style.border = '1px solid #f0c040';
+    phaseBox.style.color = '#f0c040';
+  } else {
+    phaseBox.textContent = 'Ferromagnetic  (β > 1)';
+    phaseBox.className = 'phase-indicator phase-ferro';
+  }
+}
+
+function toggleAnim() {
+  animating = !animating;
+  if (animating) {
+    animBtn.textContent = '⏹ Stop';
+    if (animBeta >= 3) animBeta = 0;
+    animate();
+  } else {
+    animBtn.textContent = '▶ Animate';
+    cancelAnimationFrame(animId);
+  }
+}
+
+function animate() {
+  if (!animating) return;
+  animBeta += animSpeed;
+  if (animBeta > 3) {
+    animBeta = 3;
+    animating = false;
+    animBtn.textContent = '▶ Animate';
+    draw(animBeta);
+    slider.value = animBeta;
+    return;
+  }
+  beta = animBeta;
+  slider.value = beta;
+  draw(beta);
+  animId = requestAnimationFrame(animate);
+}
+
+function resetAnim() {
+  animating = false;
+  cancelAnimationFrame(animId);
+  animBtn.textContent = '▶ Animate';
+  animBeta = 0;
+  beta = 0;
+  slider.value = 0;
+  draw(0);
+}
+
+slider.addEventListener('input', () => {
+  if (animating) { animating = false; animBtn.textContent = '▶ Animate'; cancelAnimationFrame(animId); }
+  beta = parseFloat(slider.value);
+  animBeta = beta;
+  draw(beta);
+});
+
+// Initial draw
+draw(0);
+</script>
+</body>
+</html>
