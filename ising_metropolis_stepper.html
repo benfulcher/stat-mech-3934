@@ -1,0 +1,376 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>2D Ising Model — Metropolis Stepper</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.44.0/tabler-icons.min.css" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #ffffff;
+      --bg-secondary: #f5f5f3;
+      --bg-info: #e6f1fb;
+      --bg-success: #e1f5ee;
+      --text: #1a1a18;
+      --text-secondary: #5f5e5a;
+      --text-tertiary: #888780;
+      --text-info: #0c447c;
+      --text-success: #085041;
+      --border: rgba(0,0,0,0.12);
+      --border-secondary: rgba(0,0,0,0.22);
+      --border-info: rgba(55,138,221,0.4);
+      --radius-md: 8px;
+      --radius-lg: 12px;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #1e1e1c;
+        --bg-secondary: #2a2a28;
+        --bg-info: #042c53;
+        --bg-success: #04342c;
+        --text: #f0ede8;
+        --text-secondary: #b4b2a9;
+        --text-tertiary: #888780;
+        --text-info: #85b7eb;
+        --text-success: #9fe1cb;
+        --border: rgba(255,255,255,0.12);
+        --border-secondary: rgba(255,255,255,0.22);
+        --border-info: rgba(55,138,221,0.5);
+      }
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      max-width: 740px;
+      margin: 0 auto;
+      padding: 32px 20px 48px;
+      font-size: 15px;
+      line-height: 1.6;
+    }
+
+    h1 { font-size: 20px; font-weight: 500; margin-bottom: 4px; }
+    .subtitle { font-size: 13px; color: var(--text-secondary); margin-bottom: 24px; }
+
+    .controls {
+      display: flex; align-items: center; gap: 12px;
+      padding: 16px 0 14px;
+      border-bottom: 0.5px solid var(--border);
+      margin-bottom: 16px;
+      flex-wrap: wrap;
+    }
+    .controls label { font-size: 14px; color: var(--text-secondary); white-space: nowrap; }
+    input[type=range] { flex: 1; min-width: 120px; accent-color: #378ADD; cursor: pointer; }
+    #T-out { font-size: 16px; font-weight: 500; min-width: 38px; text-align: right; }
+
+    .btn {
+      padding: 8px 18px; font-size: 13px; font-weight: 500;
+      border: 0.5px solid var(--border-secondary);
+      border-radius: var(--radius-md);
+      background: transparent; color: var(--text);
+      cursor: pointer; transition: background 0.12s;
+      display: inline-flex; align-items: center; gap: 6px;
+    }
+    .btn:hover { background: var(--bg-secondary); }
+    .btn:active { transform: scale(0.98); }
+    .btn-primary { background: var(--bg-info); color: var(--text-info); border-color: var(--border-info); }
+    .btn-primary:hover { opacity: 0.85; background: var(--bg-info); }
+    .btn-success { background: var(--bg-success); color: var(--text-success); border-color: #5DCAA5; }
+    .btn-success:hover { opacity: 0.85; background: var(--bg-success); }
+
+    .main-layout { display: flex; gap: 24px; align-items: flex-start; flex-wrap: wrap; }
+
+    .spin-grid    { display: inline-grid; grid-template-columns: repeat(4, 38px); gap: 4px; }
+    .spin-grid-sm { display: inline-grid; grid-template-columns: repeat(4, 24px); gap: 2px; }
+
+    .spin-cell {
+      width: 38px; height: 38px; border-radius: 6px;
+      font-size: 16px; font-weight: 500;
+      display: flex; align-items: center; justify-content: center;
+      cursor: pointer; transition: transform 0.1s;
+      border: 2px solid transparent; user-select: none;
+    }
+    .spin-cell:hover { transform: scale(1.08); }
+    .spin-up   { background: #378ADD; color: #042C53; }
+    .spin-down { background: #F0997B; color: #4A1B0C; }
+    .spin-highlighted { border-color: #FFD700; box-shadow: 0 0 0 3px rgba(255,215,0,0.35); transform: scale(1.12); }
+
+    .spin-cell-sm {
+      width: 24px; height: 24px; border-radius: 3px;
+      font-size: 10px; font-weight: 500;
+      display: flex; align-items: center; justify-content: center;
+    }
+
+    .right-panel { flex: 1; min-width: 240px; display: flex; flex-direction: column; gap: 10px; }
+    .phase-hint { font-size: 12px; color: var(--text-tertiary); text-align: center; min-height: 16px; }
+    .cards-row { display: flex; gap: 10px; }
+
+    .proposal-card {
+      border: 0.5px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 12px 14px;
+      background: var(--bg);
+      display: flex; flex-direction: column; align-items: center; gap: 7px;
+      flex: 1;
+    }
+    .card-title { font-size: 11px; font-weight: 500; color: var(--text-secondary); display: flex; align-items: center; gap: 4px; }
+    .card-energy { font-size: 11px; color: var(--text-tertiary); }
+
+    .prob-bar-track { width: 100%; height: 8px; background: var(--bg-secondary); border-radius: 4px; overflow: hidden; }
+    .prob-bar-fill  { height: 100%; border-radius: 4px; transition: width 0.4s ease; }
+    .prob-label { font-size: 11px; font-weight: 500; }
+
+    .btn-zone { height: 44px; display: flex; align-items: center; justify-content: center; }
+    .outcome-msg { font-size: 12px; color: var(--text-secondary); text-align: center; min-height: 32px; line-height: 1.5; }
+
+    .stats { display: flex; gap: 10px; margin-top: 14px; flex-wrap: wrap; }
+    .stat-card { background: var(--bg-secondary); border-radius: var(--radius-md); padding: 8px 12px; flex: 1; min-width: 80px; }
+    .stat-label { font-size: 11px; color: var(--text-secondary); margin-bottom: 2px; }
+    .stat-val   { font-size: 16px; font-weight: 500; }
+
+    .info-box {
+      margin-top: 14px; padding: 10px 14px;
+      background: var(--bg-secondary);
+      border-radius: var(--radius-md);
+      font-size: 12px; color: var(--text-secondary); line-height: 1.6;
+    }
+    .info-box strong { color: var(--text); }
+
+    kbd {
+      display: inline-block; font-size: 10px;
+      font-family: ui-monospace, "SFMono-Regular", Menlo, monospace;
+      background: var(--bg-secondary);
+      border: 0.5px solid var(--border-secondary);
+      border-radius: 3px; padding: 1px 5px;
+      color: var(--text-tertiary); line-height: 1.6;
+    }
+  </style>
+</head>
+<body>
+
+  <h1>2D Ising model — Metropolis stepper</h1>
+  <p class="subtitle">Walk through the Metropolis algorithm one spin flip at a time on a 4×4 lattice with periodic boundary conditions.</p>
+
+  <div class="controls">
+    <label for="T-sl"><em>k<sub>B</sub>T / J</em></label>
+    <input type="range" id="T-sl" min="0.2" max="5" step="0.05" value="1.5" oninput="onTChange(this.value)" />
+    <span id="T-out">1.50</span>
+    <button class="btn" onclick="resetGrid()">&#x21BA; New state <kbd>N</kbd></button>
+  </div>
+
+  <div class="main-layout">
+
+    <div style="display:flex;flex-direction:column;align-items:center;gap:10px;">
+      <div style="font-size:12px;color:var(--text-secondary);">Current state</div>
+      <div class="spin-grid" id="main-grid"></div>
+      <div style="font-size:12px;color:var(--text-secondary);" id="cur-energy"></div>
+    </div>
+
+    <div class="right-panel">
+      <div class="phase-hint" id="phase-hint">Click a spin or press the button below</div>
+
+      <div class="cards-row">
+        <div class="proposal-card" id="card-keep">
+          <div class="card-title">Keep <kbd>K</kbd></div>
+          <div class="spin-grid-sm" id="grid-keep"></div>
+          <div class="card-energy" id="en-keep">—</div>
+          <div class="prob-bar-track"><div class="prob-bar-fill" id="bar-keep" style="background:#888780;width:50%;"></div></div>
+          <div class="prob-label" id="prob-keep" style="color:var(--text-secondary);">—</div>
+          <button class="btn" onclick="choose('keep')" style="width:100%;font-size:12px;">Choose <kbd>K</kbd></button>
+        </div>
+        <div class="proposal-card" id="card-flip">
+          <div class="card-title">Flip spin <kbd>F</kbd></div>
+          <div class="spin-grid-sm" id="grid-flip"></div>
+          <div class="card-energy" id="en-flip">—</div>
+          <div class="prob-bar-track"><div class="prob-bar-fill" id="bar-flip" style="background:#378ADD;width:50%;"></div></div>
+          <div class="prob-label" id="prob-flip">—</div>
+          <button class="btn btn-primary" onclick="choose('flip')" style="width:100%;font-size:12px;">Choose <kbd>F</kbd></button>
+        </div>
+      </div>
+
+      <div class="btn-zone">
+        <button class="btn btn-success" id="main-btn" onclick="mainBtnClick()" style="width:100%;font-size:13px;">
+          &#9654; Pick random site <kbd>Space</kbd>
+        </button>
+      </div>
+
+      <div class="outcome-msg" id="outcome-msg"></div>
+    </div>
+  </div>
+
+  <div class="stats">
+    <div class="stat-card"><div class="stat-label">Steps</div><div class="stat-val" id="s-steps">0</div></div>
+    <div class="stat-card"><div class="stat-label">Flips accepted</div><div class="stat-val" id="s-accepted">0</div></div>
+    <div class="stat-card"><div class="stat-label">Accept rate</div><div class="stat-val" id="s-rate">—</div></div>
+    <div class="stat-card"><div class="stat-label">Mean |m|</div><div class="stat-val" id="s-mag">—</div></div>
+    <div class="stat-card"><div class="stat-label">Energy / J</div><div class="stat-val" id="s-energy">—</div></div>
+  </div>
+
+  <div class="info-box">
+    <strong>Metropolis rule:</strong>
+    propose a single spin flip; P(flip) = min(1, e<sup>−ΔE/k<sub>B</sub>T</sup>) is the probability of accepting the flip.
+    If rejected (probability 1 − P(flip)), the system stays in its current state.
+    Downhill moves (ΔE ≤ 0) are always accepted.
+    <br><br>
+    <strong>Keyboard shortcuts:</strong>
+    <kbd>Space</kbd> pick random site / let Metropolis decide &nbsp;
+    <kbd>F</kbd> force flip &nbsp;
+    <kbd>K</kbd> keep &nbsp;
+    <kbd>N</kbd> new random state
+    <br><br>
+    <strong>Ising energy:</strong> E = −J Σ<sub>⟨ij⟩</sub> s<sub>i</sub>s<sub>j</sub>
+    (nearest-neighbour, periodic boundary, J = 1).
+    The 2D critical temperature is k<sub>B</sub>T<sub>c</sub> / J ≈ 2.269.
+  </div>
+
+  <script>
+    let spins = [], T = 1.5, selectedSite = null, steps = 0, accepted = 0, phase = 'idle';
+
+    function isingEnergy(s) {
+      let E = 0;
+      for (let r = 0; r < 4; r++) for (let c = 0; c < 4; c++) {
+        const i = r*4+c;
+        E -= s[i]*s[r*4+(c+1)%4];
+        E -= s[i]*s[((r+1)%4)*4+c];
+      }
+      return E;
+    }
+
+    function deltaE(s, idx) {
+      const r = Math.floor(idx/4), c = idx%4;
+      return 2*s[idx]*(s[r*4+(c+1)%4]+s[r*4+(c+3)%4]+s[((r+1)%4)*4+c]+s[((r+3)%4)*4+c]);
+    }
+
+    function metropolisProb(dE) { return dE <= 0 ? 1.0 : Math.exp(-dE/T); }
+
+    function spinHTMLSm(val, highlight) {
+      const bg  = val > 0 ? '#378ADD' : '#F0997B';
+      const col = val > 0 ? '#042C53' : '#4A1B0C';
+      const brd = highlight ? 'border:2px solid #FFD700;' : '';
+      return `<div class="spin-cell-sm" style="background:${bg};color:${col};${brd}">${val>0?'↑':'↓'}</div>`;
+    }
+
+    function renderMainGrid() {
+      document.getElementById('main-grid').innerHTML = spins.map((s,i) =>
+        `<div class="spin-cell ${s>0?'spin-up':'spin-down'}${i===selectedSite&&phase==='proposed'?' spin-highlighted':''}" onclick="selectSite(${i})">${s>0?'↑':'↓'}</div>`
+      ).join('');
+      const E = isingEnergy(spins);
+      document.getElementById('cur-energy').textContent = `E = ${E.toFixed(0)} J`;
+      document.getElementById('s-energy').textContent = E.toFixed(0);
+      document.getElementById('s-mag').textContent = Math.abs(spins.reduce((a,b)=>a+b,0)/16).toFixed(2);
+    }
+
+    function showProposal(idx) {
+      selectedSite = idx; phase = 'proposed';
+      const dE = deltaE(spins, idx);
+      const pFlip = metropolisProb(dE);
+      const pReject = 1 - pFlip;
+      const flipped = [...spins]; flipped[idx] = -flipped[idx];
+      const Ecur = isingEnergy(spins);
+
+      document.getElementById('grid-keep').innerHTML = spins.map((v,i)=>spinHTMLSm(v,i===idx)).join('');
+      document.getElementById('grid-flip').innerHTML = flipped.map((v,i)=>spinHTMLSm(v,i===idx)).join('');
+      document.getElementById('en-keep').textContent = `E = ${Ecur.toFixed(0)} J  (ΔE = 0)`;
+      document.getElementById('en-flip').textContent = `E = ${(Ecur+dE).toFixed(0)} J  (ΔE = ${dE>0?'+':''}${dE.toFixed(0)})`;
+
+      const flipColor = dE <= 0 ? '#1D9E75' : '#D85A30';
+      document.getElementById('bar-flip').style.cssText = `width:${(pFlip*100).toFixed(1)}%;background:${flipColor};`;
+      document.getElementById('bar-keep').style.cssText = `width:${(pReject*100).toFixed(1)}%;background:#888780;`;
+      document.getElementById('prob-flip').innerHTML = `<span style="color:${flipColor};">P(flip) = ${pFlip>=0.995?'1.000':pFlip.toFixed(3)}</span>`;
+      document.getElementById('prob-keep').textContent = `1 − P(flip) = ${pReject.toFixed(3)}`;
+      document.getElementById('card-flip').style.cssText = `border-color:${flipColor};border-width:2px;`;
+
+      document.getElementById('phase-hint').textContent = `Site ${idx} selected — let Metropolis decide, or choose manually`;
+      document.getElementById('outcome-msg').textContent = '';
+
+      const btn = document.getElementById('main-btn');
+      btn.innerHTML = '&#9654; Let Metropolis decide <kbd>Space</kbd>';
+      btn.className = 'btn btn-primary';
+      renderMainGrid();
+    }
+
+    function mainBtnClick() { if (phase === 'idle') pickRandom(); else metropolisStep(); }
+    function selectSite(idx) { showProposal(idx); }
+    function pickRandom() { showProposal(Math.floor(Math.random()*16)); }
+
+    function choose(decision) {
+      if (phase !== 'proposed') return;
+      const dE = deltaE(spins, selectedSite);
+      steps++;
+      if (decision === 'flip') { spins[selectedSite] = -spins[selectedSite]; accepted++; }
+      finishStep(decision === 'flip', dE, decision === 'flip' ? 'manual-flip' : 'manual-keep');
+    }
+
+    function metropolisStep() {
+      if (phase !== 'proposed') return;
+      const dE = deltaE(spins, selectedSite);
+      const pFlip = metropolisProb(dE);
+      const roll = Math.random();
+      const doFlip = roll < pFlip;
+      steps++;
+      if (doFlip) { spins[selectedSite] = -spins[selectedSite]; accepted++; }
+      finishStep(doFlip, dE, 'metropolis', roll, pFlip);
+    }
+
+    function finishStep(flipped, dE, mode, roll, pFlip) {
+      phase = 'idle'; selectedSite = null;
+      document.getElementById('s-steps').textContent = steps;
+      document.getElementById('s-accepted').textContent = accepted;
+      document.getElementById('s-rate').textContent = steps > 0 ? (accepted/steps*100).toFixed(0)+'%' : '—';
+
+      let msg = '';
+      if (mode === 'metropolis') {
+        const r = roll.toFixed(3), p = pFlip>=0.995?'1.000':pFlip.toFixed(3);
+        msg = flipped
+          ? (dE<=0 ? `✓ Accepted — downhill (ΔE=${dE.toFixed(0)}J), P(flip)=1.`
+                   : `✓ Accepted — rolled ${r} < P(flip)=${p}.`)
+          : `✗ Rejected — rolled ${roll.toFixed(3)} ≥ P(flip)=${p}. State unchanged.`;
+      } else {
+        msg = flipped ? `You chose to flip (ΔE=${dE>0?'+':''}${dE.toFixed(0)}J).` : `You chose to keep the current state.`;
+      }
+      document.getElementById('outcome-msg').textContent = msg;
+      document.getElementById('phase-hint').textContent = 'Click a spin or press the button below';
+
+      const btn = document.getElementById('main-btn');
+      btn.innerHTML = '&#9654; Pick random site <kbd>Space</kbd>';
+      btn.className = 'btn btn-success';
+      document.getElementById('card-flip').style.cssText = '';
+      renderMainGrid();
+    }
+
+    function onTChange(val) {
+      T = parseFloat(val);
+      document.getElementById('T-out').textContent = T.toFixed(2);
+      if (phase === 'proposed' && selectedSite !== null) showProposal(selectedSite);
+    }
+
+    function resetGrid() {
+      spins = Array.from({length:16}, ()=>Math.random()<0.5?1:-1);
+      phase = 'idle'; selectedSite = null; steps = 0; accepted = 0;
+      document.getElementById('outcome-msg').textContent = '';
+      document.getElementById('phase-hint').textContent = 'Click a spin or press the button below';
+      ['s-steps','s-accepted'].forEach(id=>document.getElementById(id).textContent='0');
+      ['s-rate','s-mag'].forEach(id=>document.getElementById(id).textContent='—');
+      const btn = document.getElementById('main-btn');
+      btn.innerHTML = '&#9654; Pick random site <kbd>Space</kbd>';
+      btn.className = 'btn btn-success';
+      document.getElementById('card-flip').style.cssText = '';
+      renderMainGrid();
+    }
+
+    document.addEventListener('keydown', e => {
+      if (e.target.tagName === 'INPUT') return;
+      if (e.key === ' ' || e.code === 'Space') { e.preventDefault(); mainBtnClick(); }
+      else if (e.key === 'f' || e.key === 'F') { choose('flip'); }
+      else if (e.key === 'k' || e.key === 'K') { choose('keep'); }
+      else if (e.key === 'n' || e.key === 'N') { resetGrid(); }
+    });
+
+    resetGrid();
+  </script>
+</body>
+</html>
