@@ -140,7 +140,16 @@
       color: var(--text-secondary);
       text-transform: uppercase;
       letter-spacing: 0.05em;
+      margin-bottom: 4px;
+    }
+
+    .scale-labels {
+      display: flex;
+      justify-content: space-between;
+      font-size: 10px;
+      color: var(--text-tertiary);
       margin-bottom: 10px;
+      padding: 0 2px;
     }
 
     .gallery {
@@ -184,12 +193,23 @@
       border-radius: 3px;
       height: 8px;
       overflow: hidden;
+      position: relative;
     }
 
     .bar-fill {
       height: 100%;
       border-radius: 3px;
       transition: width 0.35s ease;
+    }
+
+    .bar-tick {
+      position: absolute;
+      top: 0;
+      left: 50%;
+      width: 0.5px;
+      height: 100%;
+      background: var(--text-tertiary);
+      opacity: 0.4;
     }
 
     .tag {
@@ -244,13 +264,13 @@
 
   <div class="metric-row" id="metrics"></div>
 
-  <p class="section-label">24 representative microstates — probabilities from exact partition function over all 65,536 states</p>
+  <p class="section-label">24 representative microstates — exact probabilities, fixed 0–50% scale</p>
+  <div class="scale-labels"><span>P = 0%</span><span>P = 25%</span><span>P = 50%</span></div>
   <div class="gallery" id="gallery"><div class="computing">Computing partition function…</div></div>
 
   <div class="info-box">
     <strong>Exact probabilities:</strong> Z = Σ e<sup>−E(s)/k<sub>B</sub>T</sup> summed over all 2<sup>16</sup> = 65,536 microstates.
-    P(s) = e<sup>−E(s)/k<sub>B</sub>T</sup> / Z for each shown state.
-    Bar widths are proportional to P(s) relative to the most probable state in the full space.
+    P(s) = e<sup>−E(s)/k<sub>B</sub>T</sup> / Z. Bars use a fixed 0–50% linear scale — drag the slider to high T to watch all probabilities converge to the same small value.
     &nbsp;|&nbsp; <strong>Ising energy:</strong> E = −J Σ<sub>⟨ij⟩</sub> s<sub>i</sub>s<sub>j</sub> (nearest-neighbour, periodic boundary).
     The 2D critical temperature is k<sub>B</sub>T<sub>c</sub> / J ≈ 2.269.
   </div>
@@ -258,7 +278,7 @@
   <script>
     const CANONICAL = buildCanonicalStates();
     let J = 1;
-    let Z_cache = null, maxP_cache = null, Z_cache_key = null;
+    let Z_cache = null, Z_cache_key = null;
 
     function isingEnergy(spins, j) {
       let E = 0;
@@ -314,17 +334,14 @@
       return archetypes.map((s, i) => ({ spins: s, label: labels[i] }));
     }
 
-    function computeZandMaxP(T, j) {
+    function computeZ(T, j) {
       const key = `${T}_${j}`;
       if (Z_cache_key === key) return;
-      let Z = 0, maxW = 0;
+      let Z = 0;
       for (let n = 0; n < 65536; n++) {
-        const w = Math.exp(-isingEnergy(intToSpins(n), j) / T);
-        Z += w;
-        if (w > maxW) maxW = w;
+        Z += Math.exp(-isingEnergy(intToSpins(n), j) / T);
       }
       Z_cache = Z;
-      maxP_cache = maxW / Z;
       Z_cache_key = key;
     }
 
@@ -345,7 +362,7 @@
       document.getElementById('gallery').innerHTML = '<div class="computing">Computing partition function over 65,536 states…</div>';
 
       setTimeout(() => {
-        computeZandMaxP(T, J);
+        computeZ(T, J);
 
         const data = CANONICAL.map(st => {
           const E = isingEnergy(st.spins, J);
@@ -368,7 +385,7 @@
 
         document.getElementById('gallery').innerHTML = data.map((d, rank) => {
           const rankColor = rank === 0 ? '#1D9E75' : rank < 3 ? '#378ADD' : rank > 20 ? '#D85A30' : '#888780';
-          const barW = (d.p / maxP_cache * 100).toFixed(2);
+          const barW = Math.min(d.p / 0.50 * 100, 100).toFixed(2);
           const m = magnetisation(d.spins);
           const spinsHtml = d.spins.map(s =>
             `<div class="spin-cell ${s > 0 ? 'spin-up' : 'spin-dn'}">${s > 0 ? '↑' : '↓'}</div>`
@@ -383,6 +400,7 @@
             </div>
             <div class="bar-track">
               <div class="bar-fill" style="width:${barW}%; background:${rankColor};"></div>
+              <div class="bar-tick"></div>
             </div>
             <div style="display:flex; justify-content:space-between; font-size:11px; color:var(--text-secondary);">
               <span>P = ${formatProb(d.p)}</span>
