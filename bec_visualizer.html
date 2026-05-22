@@ -1,0 +1,355 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Bose-Einstein Condensation — discrete level occupation</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: #f9f9f7;
+      color: #1a1a1a;
+      padding: 2rem 1rem;
+      min-height: 100vh;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      body { background: #1a1a1a; color: #e8e8e4; }
+      .card { background: #242422; border-color: rgba(255,255,255,0.1); }
+      .sc { background: #2e2e2b; }
+      .sc .l { color: rgba(255,255,255,0.5); }
+      input[type=range] { accent-color: #7F77DD; }
+    }
+
+    .wrap {
+      max-width: 760px;
+      margin: 0 auto;
+    }
+
+    h1 {
+      font-size: 18px;
+      font-weight: 500;
+      margin-bottom: 0.25rem;
+    }
+
+    .subtitle {
+      font-size: 13px;
+      color: #888;
+      margin-bottom: 1.5rem;
+    }
+
+    .card {
+      background: #fff;
+      border: 0.5px solid rgba(0,0,0,0.12);
+      border-radius: 12px;
+      padding: 1rem 1.25rem;
+      margin-bottom: 1rem;
+    }
+
+    .cr {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 10px;
+      font-size: 13px;
+      color: #666;
+    }
+    .cr:last-child { margin-bottom: 0; }
+    .cr label { min-width: 26px; }
+    .cr input[type=range] { flex: 1; min-width: 0; accent-color: #534AB7; }
+    .cr .v { min-width: 64px; font-weight: 500; color: #1a1a1a; }
+
+    @media (prefers-color-scheme: dark) {
+      .cr { color: rgba(255,255,255,0.5); }
+      .cr .v { color: #e8e8e4; }
+    }
+
+    .sg {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 8px;
+      margin-bottom: 1rem;
+    }
+
+    .sc {
+      background: #f3f3f0;
+      border-radius: 8px;
+      padding: 8px 10px;
+    }
+    .sc .l { font-size: 11px; color: #888; margin-bottom: 2px; }
+    .sc .n { font-size: 18px; font-weight: 500; }
+    .hi { color: #993C1D !important; }
+
+    .chart-wrap {
+      position: relative;
+      width: 100%;
+      height: 260px;
+      margin-bottom: 1rem;
+    }
+
+    .chart-wrap-sm {
+      position: relative;
+      width: 100%;
+      height: 200px;
+      margin-bottom: 0.5rem;
+    }
+
+    .legend {
+      display: flex;
+      gap: 16px;
+      flex-wrap: wrap;
+      font-size: 11px;
+      color: #888;
+      margin-bottom: 1.5rem;
+    }
+    .legend span { display: flex; align-items: center; gap: 5px; }
+    .swatch { width: 10px; height: 10px; border-radius: 2px; display: inline-block; }
+    .swatch-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+    .swatch-dash {
+      width: 14px; height: 0;
+      border-top: 2px dashed #993C1D;
+      display: inline-block;
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>Bose-Einstein condensation — discrete levels</h1>
+    <p class="subtitle">
+      Equally spaced levels ε<sub>n</sub> = (n+1)ε₀. Chemical potential μ must remain below the ground state ε₀.
+      As μ → ε₀ the ground state occupation n̄₀ diverges — the onset of condensation.
+    </p>
+
+    <div class="card">
+      <div class="cr">
+        <label>kT</label>
+        <input type="range" id="skT" min="0.1" max="20.0" step="0.1" value="2.0">
+        <span class="v" id="vkT">2.0 ε₀</span>
+      </div>
+      <div class="cr">
+        <label>μ</label>
+        <input type="range" id="smu" min="-2.0" max="0.999" step="0.001" value="-1.0">
+        <span class="v" id="vmu">−1.000 ε₀</span>
+      </div>
+    </div>
+
+    <div class="sg">
+      <div class="sc"><div class="l">ε₀ − μ (gap)</div><div class="n" id="dgap">—</div></div>
+      <div class="sc"><div class="l">n̄₀ ground state</div><div class="n" id="dn0">—</div></div>
+      <div class="sc"><div class="l">total N</div><div class="n" id="dN">—</div></div>
+      <div class="sc"><div class="l">n̄₀ / N</div><div class="n" id="dfrac">—</div></div>
+    </div>
+
+    <div class="chart-wrap">
+      <canvas id="cBars" role="img" aria-label="Bar chart of Bose-Einstein occupation numbers for each discrete energy level">Occupation numbers per energy level.</canvas>
+    </div>
+
+    <div class="chart-wrap-sm">
+      <canvas id="cN0" role="img" aria-label="Ground state occupation and fraction versus mu">Ground state occupation and fraction vs μ.</canvas>
+    </div>
+
+    <div class="legend">
+      <span><span class="swatch" style="background:#1D9E75;"></span>n̄₀ (left axis, capped 500)</span>
+      <span><span class="swatch-dash"></span>n̄₀/N fraction (right axis)</span>
+      <span><span class="swatch-dot" style="background:#BA7517;"></span>current μ</span>
+    </div>
+  </div>
+
+  <script>
+  (function(){
+    const isDark = matchMedia('(prefers-color-scheme: dark)').matches;
+    const CP  = isDark ? '#7F77DD' : '#534AB7';
+    const CP0 = isDark ? '#D85A30' : '#993C1D';
+    const CG  = isDark ? '#1D9E75' : '#0F6E56';
+    const CR  = isDark ? '#D85A30' : '#993C1D';
+    const CA  = isDark ? '#EF9F27' : '#BA7517';
+    const CGR = isDark ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.07)';
+    const CTK = isDark ? 'rgba(255,255,255,0.5)'  : 'rgba(0,0,0,0.5)';
+
+    const NLEV = 16;
+    const eps0 = 1.0;
+    const eps = n => eps0 * (n + 1);
+
+    function nBE(e, mu, kT) {
+      const x = (e - mu) / kT;
+      if (x <= 1e-12) return Infinity;
+      if (x > 500) return 0;
+      return 1 / (Math.exp(x) - 1);
+    }
+
+    const subs = ['₀','₁','₂','₃','₄','₅','₆','₇','₈','₉'];
+    const lvlLabels = Array.from({length:NLEV}, (_,n) => 'ε' + (n < 10 ? subs[n] : n));
+    const barColors = Array(NLEV).fill(CP);
+    barColors[0] = CP0;
+
+    const chart1 = new Chart(document.getElementById('cBars'), {
+      type: 'bar',
+      data: {
+        labels: lvlLabels,
+        datasets: [{
+          data: Array(NLEV).fill(0),
+          backgroundColor: barColors,
+          borderWidth: 0,
+          borderRadius: 3,
+        }]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false, animation: false,
+        plugins: {
+          legend: {display:false},
+          tooltip: {callbacks:{label: c => {
+            const v = c.parsed.y;
+            return ' n̄ = ' + (v>9999?v.toExponential(2):v>=10?Math.round(v):v.toFixed(3));
+          }}}
+        },
+        scales: {
+          x: {ticks:{color:CTK,font:{size:12},maxRotation:0},grid:{color:CGR}},
+          y: {
+            beginAtZero:true,
+            title:{display:true,text:'n̄(εₙ)',color:CTK,font:{size:12}},
+            ticks:{color:CTK,callback:v=>v>=1000?v.toExponential(0):v>=10?Math.round(v):v.toFixed(2)},
+            grid:{color:CGR}
+          }
+        }
+      }
+    });
+
+    const MU_MIN = -2.0, MU_MAX = 0.999, MU_PTS = 600;
+    const muSweep = Array.from({length:MU_PTS+1}, (_,i) => MU_MIN + (MU_MAX - MU_MIN) * i / MU_PTS);
+
+    function buildSweep(kT) {
+      const n0arr = [], fracArr = [];
+      for (const mu of muSweep) {
+        const n0 = nBE(eps(0), mu, kT);
+        let total = 0;
+        for (let n = 0; n < NLEV; n++) {
+          const v = nBE(eps(n), mu, kT);
+          total += isFinite(v) ? v : 0;
+        }
+        n0arr.push(isFinite(n0) ? Math.min(n0, 500) : 500);
+        fracArr.push((isFinite(n0) && total > 0) ? Math.min(n0 / total, 1) : 0);
+      }
+      return {n0arr, fracArr};
+    }
+
+    let sweep = buildSweep(2.0);
+
+    const chart2 = new Chart(document.getElementById('cN0'), {
+      type: 'line',
+      data: {
+        labels: muSweep.map(m => m.toFixed(3)),
+        datasets: [
+          {
+            label: 'n̄₀',
+            data: sweep.n0arr,
+            borderColor: CG,
+            borderWidth: 2,
+            pointRadius: 0,
+            tension: 0.2,
+            yAxisID: 'yL',
+            fill: {target:'origin', above: CG+(isDark?'1a':'14')},
+          },
+          {
+            label: 'n̄₀/N',
+            data: sweep.fracArr,
+            borderColor: CR,
+            borderWidth: 2,
+            borderDash: [5,4],
+            pointRadius: 0,
+            tension: 0.2,
+            yAxisID: 'yR',
+          },
+          {
+            label: 'dot',
+            data: [],
+            borderColor: CA, backgroundColor: CA,
+            pointRadius: 8, pointHoverRadius: 9,
+            showLine: false,
+            yAxisID: 'yL',
+          }
+        ]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false, animation: false,
+        plugins: {
+          legend: {display:false},
+          tooltip: {
+            filter: i => i.datasetIndex === 2,
+            callbacks: {label: c => {
+              const i = c.dataIndex;
+              const n0 = sweep.n0arr[i];
+              const fr = sweep.fracArr[i];
+              return [' n̄₀ = '+(n0>=100?Math.round(n0):n0.toFixed(2)), ' n̄₀/N = '+(fr*100).toFixed(1)+'%'];
+            }}
+          }
+        },
+        scales: {
+          x: {
+            title:{display:true,text:'μ / ε₀',color:CTK,font:{size:12}},
+            ticks:{color:CTK, maxTicksLimit:9, callback:(_,i) => muSweep[i]!==undefined ? muSweep[i].toFixed(1) : ''},
+            grid:{color:CGR}
+          },
+          yL: {
+            type:'linear', position:'left',
+            min:0, max:500,
+            title:{display:true,text:'n̄₀',color:CTK,font:{size:12}},
+            ticks:{color:CTK,callback:v=>Math.round(v)},
+            grid:{color:CGR}
+          },
+          yR: {
+            type:'linear', position:'right',
+            min:0, max:1,
+            title:{display:true,text:'n̄₀ / N',color:CTK,font:{size:12}},
+            ticks:{color:CTK,callback:v=>(v*100).toFixed(0)+'%'},
+            grid:{drawOnChartArea:false}
+          }
+        }
+      }
+    });
+
+    function update() {
+      const kT = parseFloat(document.getElementById('skT').value);
+      const mu = parseFloat(document.getElementById('smu').value);
+
+      document.getElementById('vkT').textContent = kT.toFixed(1) + ' ε₀';
+      document.getElementById('vmu').textContent = (mu >= 0 ? '+' : '−') + Math.abs(mu).toFixed(3) + ' ε₀';
+
+      const occs = Array.from({length:NLEV}, (_,n) => {
+        const v = nBE(eps(n), mu, kT);
+        return isFinite(v) ? v : 1e7;
+      });
+      const n0 = occs[0];
+      const total = occs.reduce((s,v) => s + (isFinite(v) ? v : 0), 0);
+      const frac = total > 0 ? n0 / total : 0;
+
+      chart1.data.datasets[0].data = occs.map(v => Math.min(v, 1e6));
+      chart1.update('none');
+
+      document.getElementById('dgap').textContent = (eps(0) - mu).toFixed(4) + ' ε₀';
+      document.getElementById('dgap').className    = 'n' + ((eps(0)-mu) < 0.1 ? ' hi' : '');
+      document.getElementById('dn0').textContent   = n0>9999?n0.toExponential(2):n0>=10?Math.round(n0):n0.toFixed(2);
+      document.getElementById('dn0').className     = 'n' + (n0>20?' hi':'');
+      document.getElementById('dN').textContent    = total>9999?total.toExponential(2):Math.round(total).toLocaleString();
+      document.getElementById('dfrac').textContent = (frac*100).toFixed(1) + '%';
+      document.getElementById('dfrac').className   = 'n' + (frac>0.1?' hi':'');
+
+      sweep = buildSweep(kT);
+      chart2.data.datasets[0].data = sweep.n0arr;
+      chart2.data.datasets[1].data = sweep.fracArr;
+
+      const ci = muSweep.reduce((b,m,i) => Math.abs(m-mu)<Math.abs(muSweep[b]-mu)?i:b, 0);
+      const dotY = isFinite(n0) ? Math.min(n0, 500) : 500;
+      chart2.data.datasets[2].data = muSweep.map((_,i) => i===ci ? dotY : null);
+      chart2.update('none');
+    }
+
+    document.getElementById('skT').addEventListener('input', update);
+    document.getElementById('smu').addEventListener('input', update);
+    update();
+  })();
+  </script>
+</body>
+</html>

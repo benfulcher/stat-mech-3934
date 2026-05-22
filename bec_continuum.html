@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Bose-Einstein distribution — continuum curves</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: #f9f9f7;
+      color: #1a1a1a;
+      padding: 2rem 1rem;
+      min-height: 100vh;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      body { background: #1a1a1a; color: #e8e8e4; }
+      .card { background: #242422; border-color: rgba(255,255,255,0.1); }
+      input[type=range] { accent-color: #7F77DD; }
+      .val { color: #e8e8e4 !important; }
+      .lbl { color: rgba(255,255,255,0.5) !important; }
+    }
+
+    .wrap {
+      max-width: 780px;
+      margin: 0 auto;
+    }
+
+    h1 {
+      font-size: 18px;
+      font-weight: 500;
+      margin-bottom: 0.25rem;
+    }
+
+    .subtitle {
+      font-size: 13px;
+      color: #888;
+      margin-bottom: 1.5rem;
+      line-height: 1.6;
+    }
+
+    .card {
+      background: #fff;
+      border: 0.5px solid rgba(0,0,0,0.12);
+      border-radius: 12px;
+      padding: 1rem 1.25rem;
+      margin-bottom: 1rem;
+    }
+
+    .cr {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 10px;
+      font-size: 13px;
+    }
+    .cr:last-child { margin-bottom: 0; }
+    .lbl { min-width: 28px; color: #666; }
+    .cr input[type=range] { flex: 1; min-width: 0; accent-color: #534AB7; }
+    .val { min-width: 52px; font-weight: 500; color: #1a1a1a; }
+
+    .legend {
+      display: flex;
+      gap: 16px;
+      flex-wrap: wrap;
+      font-size: 12px;
+      color: #888;
+      margin-bottom: 10px;
+    }
+    .legend span { display: flex; align-items: center; gap: 5px; }
+    .sw { width: 20px; height: 3px; display: inline-block; border-radius: 2px; }
+    .sw-dash { width: 20px; height: 0; border-top: 2px dashed #BA7517; display: inline-block; }
+    .sw-zero { width: 20px; height: 0; border-top: 1.5px solid rgba(128,128,128,0.4); display: inline-block; }
+
+    canvas { width: 100%; display: block; }
+
+    .stats {
+      display: flex;
+      gap: 20px;
+      margin-top: 8px;
+      font-size: 12px;
+      color: #888;
+      flex-wrap: wrap;
+    }
+    .stats strong { color: #1a1a1a; }
+
+    @media (prefers-color-scheme: dark) {
+      .stats { color: rgba(255,255,255,0.45); }
+      .stats strong { color: #e8e8e4; }
+      .legend { color: rgba(255,255,255,0.45); }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>Bose-Einstein distribution — continuum</h1>
+    <p class="subtitle">
+      g(ε) ∝ √ε is the 3D density of states (defined for ε ≥ 0).
+      n̄<sub>BE</sub>(ε) = 1/(e<sup>(ε−μ)/kT</sup> − 1) diverges as ε → μ⁺.
+      Their product g·n̄<sub>BE</sub> gives the particle energy distribution,
+      which remains integrable even as μ → 0.
+    </p>
+
+    <div class="card">
+      <div class="cr">
+        <span class="lbl">kT</span>
+        <input type="range" id="skT" min="0.05" max="20.0" step="0.05" value="2.0">
+        <span class="val" id="vkT">2.00</span>
+      </div>
+      <div class="cr">
+        <span class="lbl">μ</span>
+        <input type="range" id="smu" min="-4.0" max="0.0" step="0.01" value="-1.0">
+        <span class="val" id="vmu">−1.00</span>
+      </div>
+    </div>
+
+    <div class="legend">
+      <span><span class="sw" style="background:#534AB7;"></span>g(ε) ∝ √ε</span>
+      <span><span class="sw" style="background:#0F6E56;"></span>n̄<sub>BE</sub>(ε)</span>
+      <span><span class="sw" style="background:#993C1D;"></span>g · n̄<sub>BE</sub>(ε)</span>
+      <span><span class="sw-dash"></span>μ (asymptote)</span>
+      <span><span class="sw-zero"></span>ε = 0</span>
+    </div>
+
+    <canvas id="cv" role="img" aria-label="Three curves on energy axis extending to negative values: density of states, Bose-Einstein distribution with vertical asymptote at mu, and their product"></canvas>
+
+    <div class="stats">
+      <span>peak of g·n̄ at ε = <strong id="dpeak">—</strong></span>
+      <span>N (rel.) = <strong id="dN">—</strong></span>
+    </div>
+  </div>
+
+  <script>
+  (function(){
+    const isDark = matchMedia('(prefers-color-scheme: dark)').matches;
+    const canvas = document.getElementById('cv');
+    const ctx = canvas.getContext('2d');
+
+    const CP    = isDark ? '#7F77DD' : '#534AB7';
+    const CG    = isDark ? '#1D9E75' : '#0F6E56';
+    const CR    = isDark ? '#D85A30' : '#993C1D';
+    const CA    = isDark ? '#EF9F27' : '#BA7517';
+    const CAXIS = isDark ? 'rgba(255,255,255,0.3)' : 'rgba(0,0,0,0.3)';
+    const CGRID = isDark ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.07)';
+    const CTICK = isDark ? 'rgba(255,255,255,0.5)'  : 'rgba(0,0,0,0.55)';
+    const CZERO = isDark ? 'rgba(255,255,255,0.2)'  : 'rgba(0,0,0,0.18)';
+
+    const EMIN = -4.0, EMAX = 8.0, NPTS = 1200;
+    const eArr = Array.from({length: NPTS}, (_, i) => EMIN + (EMAX - EMIN) * i / (NPTS - 1));
+
+    function nBE(e, mu, kT) {
+      const x = (e - mu) / kT;
+      if (x < 1e-9) return null;
+      if (x > 500)  return 0;
+      return 1 / (Math.exp(x) - 1);
+    }
+
+    function draw() {
+      const kT = parseFloat(document.getElementById('skT').value);
+      const mu = parseFloat(document.getElementById('smu').value);
+
+      document.getElementById('vkT').textContent = kT.toFixed(2);
+      document.getElementById('vmu').textContent = (mu < 0 ? '−' : mu === 0 ? '' : '+') + Math.abs(mu).toFixed(2);
+
+      const dpr = window.devicePixelRatio || 1;
+      const cssW = canvas.parentElement.clientWidth || 740;
+      const cssH = 400;
+      canvas.width  = cssW * dpr;
+      canvas.height = cssH * dpr;
+      canvas.style.height = cssH + 'px';
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      ctx.clearRect(0, 0, cssW, cssH);
+
+      const pad = { t: 20, r: 20, b: 44, l: 54 };
+      const pw = cssW - pad.l - pad.r;
+      const ph = cssH - pad.t - pad.b;
+
+      const dosArr  = eArr.map(e => e >= 0 ? Math.sqrt(e) : null);
+      const beArr   = eArr.map(e => nBE(e, mu, kT));
+      const prodArr = eArr.map((e, i) => {
+        if (e < 0) return null;
+        const b = beArr[i];
+        return (b !== null && isFinite(b)) ? dosArr[i] * b : null;
+      });
+
+      const validProd = prodArr.filter(v => v !== null && isFinite(v));
+      const maxDOS    = Math.sqrt(EMAX);
+      const maxProd   = validProd.length ? Math.max(...validProd) : 1;
+      const YCAP      = Math.max(maxDOS, maxProd) * 1.15;
+
+      const tx = e => pad.l + (e - EMIN) / (EMAX - EMIN) * pw;
+      const ty = v => pad.t + ph - (v / YCAP) * ph;
+
+      function drawGrid() {
+        ctx.strokeStyle = CGRID;
+        ctx.lineWidth = 0.5;
+        for (let i = 0; i <= 5; i++) {
+          const y = pad.t + ph * i / 5;
+          ctx.beginPath(); ctx.moveTo(pad.l, y); ctx.lineTo(pad.l + pw, y); ctx.stroke();
+        }
+        for (let e = Math.ceil(EMIN); e <= EMAX; e++) {
+          const x = tx(e);
+          ctx.beginPath(); ctx.moveTo(x, pad.t); ctx.lineTo(x, pad.t + ph); ctx.stroke();
+        }
+      }
+
+      function drawAxes() {
+        ctx.strokeStyle = CAXIS;
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(pad.l, pad.t); ctx.lineTo(pad.l, pad.t + ph);
+        ctx.lineTo(pad.l + pw, pad.t + ph);
+        ctx.stroke();
+
+        ctx.fillStyle = CTICK;
+        ctx.font = '11px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'top';
+        for (let e = Math.ceil(EMIN); e <= EMAX; e++) {
+          const x = tx(e);
+          ctx.beginPath(); ctx.moveTo(x, pad.t+ph); ctx.lineTo(x, pad.t+ph+4);
+          ctx.strokeStyle = CAXIS; ctx.stroke();
+          ctx.fillStyle = CTICK;
+          ctx.fillText(e.toFixed(0), x, pad.t + ph + 6);
+        }
+        ctx.fillText('ε', pad.l + pw / 2, pad.t + ph + 28);
+
+        ctx.textAlign = 'right';
+        ctx.textBaseline = 'middle';
+        for (let i = 0; i <= 5; i++) {
+          const val = YCAP * (5 - i) / 5;
+          const y = pad.t + ph * i / 5;
+          ctx.beginPath(); ctx.moveTo(pad.l-4, y); ctx.lineTo(pad.l, y);
+          ctx.strokeStyle = CAXIS; ctx.stroke();
+          ctx.fillStyle = CTICK;
+          ctx.fillText(val >= 10 ? Math.round(val) : val.toFixed(1), pad.l - 7, y);
+        }
+      }
+
+      function drawZeroLine() {
+        const x = tx(0);
+        ctx.save();
+        ctx.strokeStyle = CZERO;
+        ctx.lineWidth = 1;
+        ctx.beginPath(); ctx.moveTo(x, pad.t); ctx.lineTo(x, pad.t + ph); ctx.stroke();
+        ctx.fillStyle = CZERO;
+        ctx.font = '11px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'bottom';
+        ctx.fillText('0', x, pad.t - 3);
+        ctx.restore();
+      }
+
+      function drawMuAsymptote() {
+        if (mu < EMIN || mu > EMAX) return;
+        const x = tx(mu);
+        ctx.save();
+        ctx.strokeStyle = CA;
+        ctx.lineWidth = 1.5;
+        ctx.setLineDash([5, 4]);
+        ctx.beginPath(); ctx.moveTo(x, pad.t); ctx.lineTo(x, pad.t + ph); ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.fillStyle = CA;
+        ctx.font = 'italic 12px sans-serif';
+        ctx.textAlign = mu > EMIN + 0.5 ? 'right' : 'left';
+        ctx.textBaseline = 'top';
+        ctx.fillText('μ = ' + (mu < 0 ? '−' : '') + Math.abs(mu).toFixed(2), x + (mu > EMIN + 0.5 ? -6 : 6), pad.t + 4);
+        ctx.strokeStyle = CA;
+        ctx.lineWidth = 1;
+        ctx.beginPath(); ctx.moveTo(x, pad.t + ph + 2); ctx.lineTo(x, pad.t + ph + 8); ctx.stroke();
+        ctx.fillStyle = CA;
+        ctx.font = '11px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'top';
+        ctx.fillText(mu.toFixed(2), x, pad.t + ph + 9);
+        ctx.restore();
+      }
+
+      function drawCurve(data, color, lineWidth) {
+        ctx.strokeStyle = color;
+        ctx.lineWidth = lineWidth;
+        ctx.lineJoin = 'round';
+        ctx.beginPath();
+        let penDown = false;
+        for (let i = 0; i < eArr.length; i++) {
+          const v = data[i];
+          if (v === null || !isFinite(v) || v < 0 || v > YCAP) { penDown = false; continue; }
+          const x = tx(eArr[i]);
+          const y = ty(v);
+          if (!penDown) { ctx.moveTo(x, y); penDown = true; }
+          else ctx.lineTo(x, y);
+        }
+        ctx.stroke();
+      }
+
+      drawGrid();
+      drawZeroLine();
+      drawAxes();
+      drawMuAsymptote();
+      drawCurve(dosArr,  CP, 2.0);
+      drawCurve(beArr,   CG, 2.0);
+      drawCurve(prodArr, CR, 2.5);
+
+      let peakIdx = 0, peakVal = 0;
+      prodArr.forEach((v, i) => { if (v !== null && v > peakVal) { peakVal = v; peakIdx = i; } });
+      const de = (EMAX - EMIN) / (NPTS - 1);
+      const Nrel = prodArr.reduce((s, v) => s + (v !== null && isFinite(v) ? v * de : 0), 0);
+      document.getElementById('dpeak').textContent = eArr[peakIdx].toFixed(2);
+      document.getElementById('dN').textContent    = Nrel.toFixed(2);
+    }
+
+    document.getElementById('skT').addEventListener('input', draw);
+    document.getElementById('smu').addEventListener('input', draw);
+    window.addEventListener('resize', draw);
+    draw();
+  })();
+  </script>
+</body>
+</html>
